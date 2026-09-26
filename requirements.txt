@@ -1,0 +1,4 @@
+# Colab already has torch/torchvision/numpy/matplotlib/Pillow
+timm
+peft
+pyyaml

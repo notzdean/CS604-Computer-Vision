@@ -1,0 +1,11 @@
+# Baseline 1: full fine-tuning (brief reference: 70.8% top-1). Hyper-parameters are UNTUNED starting points.
+name: full_ft_baseline
+method: full_ft
+epochs: null            # null -> as many epochs as fit in the budget (96 GB-hours / GPU size)
+budget_hours: auto
+batch_size: 128
+lr: 3.0e-5
+head_lr_mult: 10.0
+weight_decay: 0.05
+label_smoothing: 0.0
+head_init: true         # nearest-class-mean head (zero-shot baseline, brief reference 43.7%)

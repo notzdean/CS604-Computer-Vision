@@ -1,0 +1,12 @@
+# Quick pipeline check (a few minutes on a GPU): 100 classes, 60 steps, no budget logic.
+# python -m common.train configs/smoke.yaml out_dir=runs/smoke
+name: smoke
+method: lora
+method_args: {r: 8}
+debug_classes: 100
+max_train_steps: 60
+warmup_steps: 10
+batch_size: 64
+log_every: 10
+head_init_per_class: 5
+eval_every_epochs: 1

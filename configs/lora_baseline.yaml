@@ -1,0 +1,12 @@
+# Baseline 2: LoRA on attention qkv (brief reference: 68.3% top-1, 0.34% params). UNTUNED starting point.
+name: lora_baseline
+method: lora
+method_args: {r: 16, alpha: 32, dropout: 0.0, target_modules: [qkv]}
+epochs: null
+budget_hours: auto
+batch_size: 128
+lr: 5.0e-4
+head_lr_mult: 1.0
+weight_decay: 0.01
+label_smoothing: 0.0
+head_init: true

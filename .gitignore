@@ -1,0 +1,19 @@
+# data, weights, run outputs - never commit
+data/
+cs604-course-data/
+runs/
+*.pt
+*.pth
+*.safetensors
+*.zip
+*.tar.gz
+
+# course brief contains the CodaBench link with its secret key
+CS604 project description.pdf
+
+# python / editor
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.vscode/
+.env

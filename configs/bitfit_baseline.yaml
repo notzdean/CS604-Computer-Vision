@@ -1,0 +1,11 @@
+# BitFit: train biases + head only. UNTUNED starting point.
+name: bitfit_baseline
+method: bitfit
+epochs: null
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-3
+head_lr_mult: 1.0
+weight_decay: 0.0
+label_smoothing: 0.0
+head_init: true
