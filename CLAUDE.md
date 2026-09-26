@@ -47,6 +47,7 @@ There is no test suite or linter. The smoke config is the pipeline test. Do not 
 
 - Compute is a Colab GPU used from VS Code with the official **Google Colab** extension: open the `.ipynb` locally, Select Kernel -> Colab -> New Colab Server (or reuse an existing server so the downloaded data is visible). Only notebooks run on Colab (no remote terminal); use `!` shell cells. Files written on the VM stay on the VM.
 - Measured on a Colab **T4**: 25 img/s training (bf16 is emulated there) = ~5 h per epoch. **Unusable; use an A100** (or L4 as fallback) for real runs. The data loader (8 CPU cores) delivered ~880 img/s, so a fast GPU may become loader-bound. A100/L4 speeds have not been measured yet: the training loop logs its own img/s.
+- Notebook 02 has a `RUN` variable = output folder name (default: the config name). Use a **new** `RUN` whenever you repeat a config (pilot, changed lr), otherwise the run resumes the old checkpoint.
 - Disconnects kill the run: outputs go to Google Drive (`OUT` in notebook 02) and runs resume. Terminate idle sessions (Runtime -> Manage sessions) so credits are not wasted.
 - Colab credits are per person, so the 3 of us can run experiments in parallel.
 
