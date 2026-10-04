@@ -1,0 +1,13 @@
+# LoRA r=12 on qkv + AdaptFormer bottleneck 208 on every FFN, AdamW. Total adapter share about 4.998% of backbone
+# (LoRA 0.52% + AdaptFormer 4.48%). The head is not counted. UNTUNED starting point.
+name: lora_adaptformer
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: null
+budget_hours: auto
+batch_size: 128
+lr: 3.0e-4
+head_lr_mult: 1.0
+weight_decay: 0.01
+label_smoothing: 0.0
+head_init: true
