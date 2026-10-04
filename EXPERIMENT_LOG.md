@@ -13,6 +13,7 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 |---|---|---|---|---|---|---|---|
 | zero-shot (head init only) | none | `lora_baseline` before training | 35.70 | 0 | 7.69M (init only) | - | - |
 | lora_r8_full | LoRA r=8, qkv | `lora_baseline` | 68.78 | 0.344 | 7.69M (trained) | 0.76 | not recorded here |
+| lora_adaptformer | LoRA r=12 qkv + AdaptFormer b=208 (FFN) | `lora_adaptformer` | 71.29 | 4.998 | 7.69M (trained) | 0.93 | not recorded here |
 
 Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
@@ -48,6 +49,18 @@ Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
   - Regularisation ablations (label smoothing, weight decay, stronger augmentation) are the next thing to test, not longer training.
 - **Open questions:** the zero-shot 35.7% is below the brief's 43.7%. Likely causes: head init uses 10 images per class and a scale chosen by leave-one-out CE. Test a higher `per_class` before trusting the head init.
 - **Artefacts (Drive):** `My Drive/cs604_runs/lora_r8_full/` (`curves.png`, `log.jsonl`, `summary.json`, `val_team_01.zip`).
+
+### lora_adaptformer (4 Oct 2026, Nicole)
+
+- **Setup:** `configs/lora_adaptformer.yaml`. LoRA r=12 (alpha 24) on each block's `qkv`, plus an AdaptFormer bottleneck of 208 on each block's FFN (zero-init up-projection). AdamW, lr 3e-4 (lower than LoRA alone, for the larger adapter), head trainable, head initialised the same way as before, bf16.
+- **Result:** hold-out top-1 71.29%, top-5 88.02%, hold-out loss 1.35. Zero-shot 35.70% (same head init).
+- **Efficiency:** 4,287,936 adapter params = 4.998% of backbone (the 5% limit, with almost no margin). Head (7.69M) not counted. Train 0.93 h, 7.78 epochs (26,123 steps). Throughput about 1,105 img/s, about 11% slower than LoRA alone.
+- **Interpretation:**
+  - +2.5 points top-1 over LoRA alone (68.78%), at about 0.17 GPU-hours extra.
+  - Hold-out loss keeps falling to the end (1.49 at epoch 1, 1.35 at the end). LoRA alone rose from epoch 2, so the extra capacity isn't overfitting in the same way. The gain looks like more capacity used well, not only longer training.
+  - Hold-out accuracy is still rising at the end (70.2 at epoch 5, 71.3 at epoch 7.8), so it hasn't fully plateaued.
+- **Caveats:** a single run and a single seed, so a 2-point gap could partly be noise. The 4.998% share is close enough to the limit that the counting rule must be stated in the report. Hold-out numbers are not the leaderboard.
+- **Log:** `results/lora_adaptformer/log.jsonl`.
 
 ## Planned ablations (one change per run)
 
