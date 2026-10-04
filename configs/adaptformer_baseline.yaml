@@ -1,0 +1,13 @@
+# AdaptFormer: bottleneck adapter parallel to every block's FFN, AdamW. UNTUNED starting point.
+# Trainable: adapters + head only (roughly 1.3% of the model with bottleneck 64; check the printed %).
+name: adaptformer_baseline
+method: adaptformer
+method_args: {bottleneck: 64, scale: 0.1}
+epochs: null
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-3
+head_lr_mult: 1.0
+weight_decay: 0.01
+label_smoothing: 0.0
+head_init: true
