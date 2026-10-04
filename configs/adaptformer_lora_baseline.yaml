@@ -1,0 +1,14 @@
+# AdaptFormer + LoRA combined, AdamW. UNTUNED starting point.
+# NOTE: method "adaptformer_lora" is not registered in methods/__init__.py yet, so this config will fail
+# until that method is written (LoRA on qkv + AdaptFormer adapters on each FFN, head trainable).
+name: adaptformer_lora_baseline
+method: adaptformer_lora
+method_args: {lora_r: 16, lora_alpha: 32, lora_target_modules: [qkv], bottleneck: 64, scale: 0.1}
+epochs: null
+budget_hours: auto
+batch_size: 128
+lr: 5.0e-4
+head_lr_mult: 1.0
+weight_decay: 0.01
+label_smoothing: 0.0
+head_init: true
