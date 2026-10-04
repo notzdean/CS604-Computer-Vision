@@ -28,6 +28,24 @@ Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
   - Training added ~33 points on top of the head init.
   - LoRA with 0.34% of the backbone matches the brief's 68.3% reference, but the hold-out and the reference are not identical sets, so compare with care.
   - The run stopped at 7 epochs in 0.76 h, well under the 1.2 h budget estimated after the 35-step probe. The probe underestimated throughput (815 img/s measured, ~1,245 img/s sustained), so the budget logic was conservative.
+- **Hold-out by epoch (from `results/lora_r8_full/log.jsonl`):**
+
+  | Epoch | Hold-out top-1 | Top-5 | Hold-out loss |
+  |---|---|---|---|
+  | 1 | 62.01 | 84.06 | 1.645 |
+  | 2 | 65.23 | 85.38 | 1.571 |
+  | 3 | 66.26 | 85.42 | 1.616 |
+  | 4 | 66.78 | 85.36 | 1.705 |
+  | 5 | 67.92 | 85.57 | 1.712 |
+  | 6 | 68.62 | 85.83 | 1.700 |
+  | 7 | 68.75 | 85.80 | 1.691 |
+  | 7.02 (final) | 68.78 | 85.78 | 1.692 |
+
+- **Training loss (mean per epoch):** 2.09, 1.07, 0.65, 0.39, 0.23, 0.15, 0.12. It falls about 20x over training.
+- **Interpretation:**
+  - Top-1 keeps rising slowly after epoch 2, but the hold-out loss is flat or rising from epoch 2 (1.57 to 1.69) while training loss drops to 0.12. That's a sign of overfitting in confidence: the model gets more sure of its answers, and not all of them are right.
+  - The accuracy gains in epochs 5 to 7 are small (+0.9 points in total). More epochs will not help much, so the limit is the model's capacity or the regularisation, not the training time.
+  - Regularisation ablations (label smoothing, weight decay, stronger augmentation) are the next thing to test, not longer training.
 - **Open questions:** the zero-shot 35.7% is below the brief's 43.7%. Likely causes: head init uses 10 images per class and a scale chosen by leave-one-out CE. Test a higher `per_class` before trusting the head init.
 - **Artefacts (Drive):** `My Drive/cs604_runs/lora_r8_full/` (`curves.png`, `log.jsonl`, `summary.json`, `val_team_01.zip`).
 
