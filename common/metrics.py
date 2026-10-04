@@ -9,10 +9,22 @@ import torch
 BUDGET_GB_HOURS = 96          # 2 h x 48 GB
 
 
+# Counting rule (inferred from the brief: zero-shot row = 0%, LoRA 0.34% = rank 8 on qkv of the backbone):
+# the classifier head is NOT counted. Percentages are relative to the pre-trained backbone (no head).
+_NOT_BACKBONE = ("head", "lora_", "modules_to_save", ".down.", ".up.")
+
+
 def count_params(model):
-    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    total = sum(p.numel() for p in model.parameters())
-    return trainable, total
+    """-> (adapter params trainable, head params trainable, backbone params). Adapter % = adapter / backbone."""
+    adapter = head = backbone = 0
+    for name, p in model.named_parameters():
+        n = p.numel()
+        if "head" in name.split("."):
+            head += n if p.requires_grad else 0
+        else:
+            backbone += 0 if any(k in name for k in _NOT_BACKBONE) else n
+            adapter += n if p.requires_grad else 0
+    return adapter, head, backbone
 
 
 def gpu_info():
@@ -41,7 +53,7 @@ def latency_ms(model, device, amp=None, n=50, warm=10):
 
 
 RESULT_COLS = ["name", "who", "method", "holdout_top1", "holdout_top5", "zero_shot_top1", "trainable_params",
-               "trainable_pct", "latency_ms_bs1", "train_hours", "gpu", "gpu_gb", "equiv_hours_48gb",
+               "trainable_pct", "head_params", "latency_ms_bs1", "train_hours", "gpu", "gpu_gb", "equiv_hours_48gb",
                "peak_vram_gib", "epochs", "steps", "lr", "batch_size", "leaderboard_val_top1", "notes"]
 
 

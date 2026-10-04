@@ -155,8 +155,9 @@ def main(argv):
         init = lambda m: ncm_head_init(m, train_rows, device, cfg["head_init_per_class"], workers=workers, amp=amp,
                                        scale=cfg["head_init_scale"])
     model = build_model(cfg, init_head=init).to(device)
-    n_train, n_total = metrics.count_params(model)
-    print(f"trainable parameters: {n_train:,} / {n_total:,} = {100 * n_train / n_total:.2f}%")
+    n_train, n_head, n_base = metrics.count_params(model)
+    print(f"trainable adapter params: {n_train:,} = {100 * n_train / n_base:.2f}% of backbone ({n_base:,}); "
+          f"classifier head (not counted): {n_head:,} trainable")
 
     opt = torch.optim.AdamW(make_groups(model, cfg["lr"], cfg["head_lr_mult"], cfg["weight_decay"]),
                             betas=(0.9, 0.999), fused=device.type == "cuda")
@@ -259,7 +260,7 @@ def main(argv):
     save_ckpt(latest)
     row = dict(name=cfg["name"], who=cfg["who"], method=cfg["method"], holdout_top1=round(ev["top1"], 2),
                holdout_top5=round(ev["top5"], 2), zero_shot_top1=round(zero_shot["top1"], 2) if zero_shot else "",
-               trainable_params=n_train, trainable_pct=round(100 * n_train / n_total, 3), latency_ms_bs1=round(lat, 1),
+               trainable_params=n_train, trainable_pct=round(100 * n_train / n_base, 3), head_params=n_head, latency_ms_bs1=round(lat, 1),
                train_hours=round(train_s / 3600, 3), gpu=gpu_name, gpu_gb=gpu_gb,
                equiv_hours_48gb=round(train_s / 3600 * gpu_gb / 48, 3) if gpu_gb else "", peak_vram_gib=round(peak, 1),
                epochs=round(step / spe, 2), steps=step, lr=cfg["lr"], batch_size=bs, notes=cfg["notes"])

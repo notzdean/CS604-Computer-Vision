@@ -1,1 +1,1 @@
-name,who,method,holdout_top1,holdout_top5,zero_shot_top1,trainable_params,trainable_pct,latency_ms_bs1,train_hours,gpu,gpu_gb,equiv_hours_48gb,peak_vram_gib,epochs,steps,lr,batch_size,leaderboard_val_top1,notes
+name,who,method,holdout_top1,holdout_top5,zero_shot_top1,trainable_params,trainable_pct,head_params,latency_ms_bs1,train_hours,gpu,gpu_gb,equiv_hours_48gb,peak_vram_gib,epochs,steps,lr,batch_size,leaderboard_val_top1,notes
