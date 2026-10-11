@@ -53,8 +53,8 @@ Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 ### lora_adaptformer (4 Oct 2026, Nicole)
 
 - **Setup:** `configs/lora_adaptformer.yaml`. LoRA r=12 (alpha 24) on each block's `qkv`, plus an AdaptFormer bottleneck of 208 on each block's FFN (zero-init up-projection). AdamW, lr 3e-4 (lower than LoRA alone, for the larger adapter), head trainable, head initialised the same way as before, bf16.
-- **Result:** hold-out top-1 71.29%, top-5 88.02%, hold-out loss 1.35. Zero-shot should equal the LoRA run's 35.70% (same head init), but it was not read from this run's output.
-- **Efficiency:** 4,287,936 adapter params = 4.998% of backbone (the 5% limit, with almost no margin). Head (7.69M) not counted. Train 0.93 h, 7.78 epochs (26,123 steps). Throughput about 1,105 img/s, about 11% slower than LoRA alone.
+- **Result:** hold-out top-1 71.29%, top-5 88.02%, hold-out loss 1.35. Zero-shot 35.70% (same head init as the LoRA run).
+- **Efficiency:** 4,287,936 adapter params = 4.998% of backbone (the 5% limit, with almost no margin). Head (7.69M) not counted. Latency 11.3 ms (batch 1), against 9.6 ms for LoRA alone. Peak VRAM 7.3 GiB. Train 0.93 h, 7.78 epochs (26,123 steps). Throughput about 1,105 img/s, about 11% slower than LoRA alone.
 - **Interpretation:**
   - +2.5 points top-1 over LoRA alone (68.78%), at about 0.17 GPU-hours extra.
   - Hold-out loss keeps falling to the end (1.49 at epoch 1, 1.35 at the end). LoRA alone rose from epoch 2, so the extra capacity isn't overfitting in the same way. The gain looks like more capacity used well, not only longer training.
@@ -64,9 +64,26 @@ Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
 ## Next runs (planned 11 Oct 2026)
 
+### Run queue
+
+Take a run marked "open" and tell the team before you start, so no run is done twice. How to run one is in `README.md`. Every run uses `RUN = ""`; leave `EXTRA` empty unless a value is given here. Each takes about 1.2 h on an A100 80 GB.
+
+| # | `CONFIG` | `EXTRA` | What it is | Owner | Status |
+|---|---|---|---|---|---|
+| 1 | `full_ft_baseline` | `ckpt_every_steps=1000000` | required baseline: the whole model is trained | Nicole | running since 11 Oct |
+| 2 | `abl_combined` | | our design for 10 epochs: the comparison point for runs 3 to 8 | Nicole | next |
+| 3 | `tune_label_smoothing` | | run 2 + label smoothing 0.1 | open | |
+| 4 | `tune_lr_high` | | run 2 + learning rate 5e-4 | open | |
+| 5 | `tune_lr_low` | | run 2 + learning rate 2e-4 | open | |
+| 6 | `tune_head_init` | | run 2 + classifier start from 43 images per class (about 1.25 h) | open | |
+| 7 | `abl_adaptformer_only` | | AdaptFormer alone at 5%, for the report | open | |
+| 8 | `abl_lora_only` | | LoRA alone at 5%, for the report | open | |
+
+When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
+
 ### 1. Full fine-tuning (required track, no result yet)
 
-`CONFIG = "full_ft_baseline"`, `EXTRA = "ckpt_every_steps=10000"` (its checkpoints are about 1 GB each). It is the brief's Task 1 and the 100% baseline that the 5% design is compared with (brief reference 70.8%). The 5% limit does not apply to it.
+`CONFIG = "full_ft_baseline"`, `EXTRA = "ckpt_every_steps=1000000"`: each checkpoint is the whole model (about 1.1 GB), so this turns off the saves every 2,000 steps and keeps the one at the end of each epoch. It is the brief's Task 1 and the 100% baseline that the 5% design is compared with (brief reference 70.8%). The 5% limit does not apply to it. First 200 steps on 11 Oct: about 1,087 img/s (the same speed as the LoRA + AdaptFormer run), loss falling from 3.20 to 2.70.
 
 ### 2. Equal-budget ablation: which part of the design earns the gain?
 
