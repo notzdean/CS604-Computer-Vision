@@ -1,0 +1,14 @@
+# Tuning run: abl_combined with ONE change: learning rate 2e-4 (baseline 3e-4).
+# Why: 3e-4 was a guess and was never tuned. Compare with abl_combined and tune_lr_high.
+name: tune_lr_low
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 2.0e-4
+head_lr_mult: 1.0
+weight_decay: 0.01
+label_smoothing: 0.0
+head_init: true
+notes: "tuning: lr 2e-4 vs abl_combined"

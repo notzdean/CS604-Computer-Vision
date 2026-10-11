@@ -1,0 +1,19 @@
+# Tuning run: abl_combined with ONE change: the classifier head starts from the mean of ALL 43 training images
+# per class (baseline: 10 per class). 43 = 45 images minus the 2 held out for scoring.
+# Why: our zero-shot start is 35.7% against the 43.7% in the brief. Compare with abl_combined.
+# Cost: the extra feature pass adds roughly 4 to 5 minutes, so this run ends near 1.25 h on an A100 80 GB
+# (over the 1.2 h budget, inside the +-10% tolerance). Cheap check first: add max_train_steps=50 and read the
+# "zero-shot" line.
+name: tune_head_init
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 3.0e-4
+head_lr_mult: 1.0
+weight_decay: 0.01
+label_smoothing: 0.0
+head_init: true
+head_init_per_class: 43
+notes: "tuning: head init from 43 images per class vs abl_combined"

@@ -1,0 +1,14 @@
+# Ablation B of 3 (equal budget, about 5% of backbone): AdaptFormer only, bottleneck 232 on every FFN = 4.998%.
+# Same lr, epochs and everything else as abl_lora_only and abl_combined, so only the adapter design differs.
+name: abl_adaptformer_only
+method: adaptformer
+method_args: {bottleneck: 232, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 3.0e-4
+head_lr_mult: 1.0
+weight_decay: 0.01
+label_smoothing: 0.0
+head_init: true
+notes: "ablation B: AdaptFormer only at about 5%"

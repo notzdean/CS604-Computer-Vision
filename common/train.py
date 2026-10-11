@@ -36,7 +36,7 @@ DEFAULTS = dict(
     eval_every_epochs=1, ckpt_every_steps=2000, log_every=50,
     out_dir=None, results_csv="results/results.csv",
 )
-PROBE_START, PROBE_END = 5, 35        # steps used to measure speed when epochs is null
+PROBE_START, PROBE_END = 100, 300    # steps used to measure speed when epochs is null (the first ~50 steps are slow)
 
 
 def load_cfg(argv):

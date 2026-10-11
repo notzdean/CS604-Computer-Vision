@@ -4,7 +4,7 @@ Running record of every experiment for the ablation study and the report. One se
 Source of truth for numbers is `results/results.csv` (one row per run); this file adds the interpretation.
 Brief marks: motivation of design (most important), design, **ablation of each part**, top-1, trainable params, latency, GPU-hours, loss curves.
 
-**Counting rule:** trainable % = adapter params / backbone params (85.8M). The classifier head (7.69M) is excluded and shown separately.
+**Counting rule (confirmed by the professor, 11 Oct 2026):** trainable % = adapter params / backbone params (85.8M). The classifier head (7.69M) is excluded and shown separately. The <5% limit applies to the efficient-adaptation track only.
 **Hold-out:** 2 labelled train images per class (20,000 images). These are *not* the val set. The CodaBench val leaderboard is the real check.
 
 ## Summary
@@ -53,14 +53,50 @@ Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 ### lora_adaptformer (4 Oct 2026, Nicole)
 
 - **Setup:** `configs/lora_adaptformer.yaml`. LoRA r=12 (alpha 24) on each block's `qkv`, plus an AdaptFormer bottleneck of 208 on each block's FFN (zero-init up-projection). AdamW, lr 3e-4 (lower than LoRA alone, for the larger adapter), head trainable, head initialised the same way as before, bf16.
-- **Result:** hold-out top-1 71.29%, top-5 88.02%, hold-out loss 1.35. Zero-shot 35.70% (same head init).
+- **Result:** hold-out top-1 71.29%, top-5 88.02%, hold-out loss 1.35. Zero-shot should equal the LoRA run's 35.70% (same head init), but it was not read from this run's output.
 - **Efficiency:** 4,287,936 adapter params = 4.998% of backbone (the 5% limit, with almost no margin). Head (7.69M) not counted. Train 0.93 h, 7.78 epochs (26,123 steps). Throughput about 1,105 img/s, about 11% slower than LoRA alone.
 - **Interpretation:**
   - +2.5 points top-1 over LoRA alone (68.78%), at about 0.17 GPU-hours extra.
   - Hold-out loss keeps falling to the end (1.49 at epoch 1, 1.35 at the end). LoRA alone rose from epoch 2, so the extra capacity isn't overfitting in the same way. The gain looks like more capacity used well, not only longer training.
   - Hold-out accuracy is still rising at the end (70.2 at epoch 5, 71.3 at epoch 7.8), so it hasn't fully plateaued.
-- **Caveats:** a single run and a single seed, so a 2-point gap could partly be noise. The 4.998% share is close enough to the limit that the counting rule must be stated in the report. Hold-out numbers are not the leaderboard.
+- **Caveats:** the hold-out (20,000 images) has about 0.3 points of sampling error per run, so the 2.5-point gap is not sampling noise, and the leaderboard ranks the two runs the same way. But this run differs from the LoRA baseline in three things at once (rank 8 to 12, the added adapter, lr 5e-4 to 3e-4) and ran 0.76 epochs longer, so it does not show which part earned the gain. The `abl_*` trio below answers that. Single seed. The 4.998% share leaves almost no margin, so state the counting rule in the report.
 - **Log:** `results/lora_adaptformer/log.jsonl`.
+
+## Next runs (planned 11 Oct 2026)
+
+### 1. Full fine-tuning (required track, no result yet)
+
+`CONFIG = "full_ft_baseline"`, `EXTRA = "ckpt_every_steps=10000"` (its checkpoints are about 1 GB each). It is the brief's Task 1 and the 100% baseline that the 5% design is compared with (brief reference 70.8%). The 5% limit does not apply to it.
+
+### 2. Equal-budget ablation: which part of the design earns the gain?
+
+All three use about 5% of the backbone, lr 3e-4, 10 epochs (about 1.18 h on an A100 80 GB, inside the 1.2 h budget) and identical settings otherwise. Only the adapter design differs.
+
+| Run | Config | Design | Adapter % | Hold-out top-1 |
+|---|---|---|---|---|
+| A | `abl_lora_only` | LoRA r=116 on qkv | 4.984 | to run |
+| B | `abl_adaptformer_only` | AdaptFormer b=232 on FFN | 4.998 | to run |
+| C | `abl_combined` | LoRA r=12 on qkv + AdaptFormer b=208 on FFN | 4.998 | to run |
+
+How to read it: if C beats both A and B by about 1 point or more, adapting attention and FFN together is better than spending the same budget on one of them. If A or B matches C, the simpler design is the better story. Rank 116 has never been run, so watch its first loss lines.
+
+### 3. One-change tuning on `abl_combined` (one config per change)
+
+Each config is `abl_combined` with exactly one setting changed, so it is compared with the `abl_combined` run (C above). Leave `RUN` empty so each config gets its own output folder.
+
+| Config | The one change (baseline value) | Why | Hold-out top-1 |
+|---|---|---|---|
+| `abl_combined` | none: the baseline, 10 epochs (the earlier run stopped at 7.8) | uses the whole time budget | to run |
+| `tune_label_smoothing` | label smoothing 0.1 (0.0) | the LoRA run got over-confident (train loss 0.12, hold-out loss rising); the brief hints at loss design | to run |
+| `tune_lr_low` | lr 2e-4 (3e-4) | 3e-4 was never tuned | to run |
+| `tune_lr_high` | lr 5e-4 (3e-4) | 3e-4 was never tuned | to run |
+| `tune_head_init` | head init from 43 images per class (10) | zero-shot 35.7% vs the brief's 43.7% | to run |
+
+How to decide: one change worth a few tenths of a point cannot be told apart from noise on its own (about 0.3 points of sampling error per run). So after these runs, make one config with every change that went up, run it once, and keep it only if it beats `abl_combined` clearly (about 1 point). That combined run is the one to submit.
+
+`tune_head_init` ends near 1.25 h on an A100 80 GB (estimate: the extra feature pass adds 4 to 5 minutes), which is over the 1.2 h budget but inside the +-10% tolerance. Cheap check first: `EXTRA = "max_train_steps=50"` and read the zero-shot line.
+
+Not config-only, so they come later: training the final model on all 45 images per class (no hold-out left to score it), mirror averaging at prediction time (doubles latency), and moving the 5% between attention and FFN (depends on runs A to C).
 
 ## Planned ablations (one change per run)
 
@@ -80,6 +116,7 @@ Each row is one run. Add the result to `results/results.csv` and a section above
 
 ## Notes for the report
 
-- Trainable % is measured against the backbone and the head is excluded. This is inferred from the brief's 0.34% LoRA figure (rank 8 on qkv matches exactly), and it is not stated in the brief. Confirm with the professor or state it explicitly in the report.
+- Trainable % is measured against the backbone and the head is excluded. The professor confirmed on 11 Oct 2026 that the classifier head does not count towards the 5% limit. It also matches the brief's 0.34% LoRA figure (rank 8 on qkv). State the rule in the report anyway.
+- Open question for the professor: an 80 GB A100 is counted here as 80 GB (budget 1.2 h). The LoRA run peaked at 6.7 GiB, so ask whether such a run may use the full 2 h.
 - Hold-out numbers are not leaderboard numbers. Report both and say which is which.
 - Leaderboard scores are not published by teams, and this repo is public, so they are not recorded here. Keep them in the report only.

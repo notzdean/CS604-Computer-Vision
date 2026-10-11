@@ -1,0 +1,15 @@
+# Ablation A of 3 (equal budget, about 5% of backbone): LoRA only, rank 116 on qkv = 4.984%.
+# Same lr, epochs and everything else as abl_adaptformer_only and abl_combined, so only the adapter design differs.
+# alpha / r = 2, the same LoRA scaling as the combined design. UNTUNED: rank 116 has not been run yet.
+name: abl_lora_only
+method: lora
+method_args: {r: 116, alpha: 232, dropout: 0.0, target_modules: [qkv]}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 3.0e-4
+head_lr_mult: 1.0
+weight_decay: 0.01
+label_smoothing: 0.0
+head_init: true
+notes: "ablation A: LoRA only at about 5%"

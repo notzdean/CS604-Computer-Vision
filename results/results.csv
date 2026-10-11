@@ -1,1 +1,3 @@
 name,who,method,holdout_top1,holdout_top5,zero_shot_top1,trainable_params,trainable_pct,head_params,latency_ms_bs1,train_hours,gpu,gpu_gb,equiv_hours_48gb,peak_vram_gib,epochs,steps,lr,batch_size,leaderboard_val_top1,notes
+lora_r8_full,Nicole,lora,68.78,85.78,35.7,294912,0.344,7690000,9.6,0.759,NVIDIA A100-SXM4-80GB,80,1.265,6.7,7.02,23582,0.0005,128,,
+lora_adaptformer,Nicole,lora_adaptformer,71.29,88.02,,4287936,4.998,7690000,,0.925,NVIDIA A100-SXM4-80GB,80,1.542,,7.78,26123,0.0003,128,,"row rebuilt from log.jsonl; zero-shot, latency and peak VRAM still to copy from the Drive summary.json"

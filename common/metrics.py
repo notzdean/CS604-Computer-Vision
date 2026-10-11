@@ -9,7 +9,7 @@ import torch
 BUDGET_GB_HOURS = 96          # 2 h x 48 GB
 
 
-# Counting rule (inferred from the brief: zero-shot row = 0%, LoRA 0.34% = rank 8 on qkv of the backbone):
+# Counting rule (confirmed by the professor on 11 Oct 2026; also matches the brief: LoRA 0.34% = rank 8 on qkv):
 # the classifier head is NOT counted. Percentages are relative to the pre-trained backbone (no head).
 _NOT_BACKBONE = ("head", "lora_", "modules_to_save", ".down.", ".up.")
 
