@@ -1,0 +1,22 @@
+{
+ "name": "abl_adaptformer_only",
+ "who": "lilian",
+ "method": "adaptformer",
+ "holdout_top1": 71.09,
+ "holdout_top5": 87.47,
+ "zero_shot_top1": 35.7,
+ "trainable_params": 4288224,
+ "trainable_pct": 4.998,
+ "head_params": 7690000,
+ "latency_ms_bs1": 9.2,
+ "train_hours": 1.043,
+ "gpu": "NVIDIA A100-SXM4-80GB",
+ "gpu_gb": 80,
+ "equiv_hours_48gb": 1.738,
+ "peak_vram_gib": 6.5,
+ "epochs": 10.0,
+ "steps": 33590,
+ "lr": 0.0003,
+ "batch_size": 128,
+ "notes": "ablation B: AdaptFormer only at about 5%"
+}
