@@ -108,7 +108,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 3 | `tune_label_smoothing` | | run 2 + label smoothing 0.1 | open | |
 | 4 | `tune_lr_high` | | run 2 + learning rate 5e-4 | open | |
 | 5 | `tune_lr_low` | | run 2 + learning rate 2e-4 | open | |
-| 6 | `tune_head_init` | | run 2 + classifier start from 43 images per class (about 1.25 h) | open | |
+| 6 | `tune_head_init` | | run 2 + classifier start from 43 images per class (about 1.25 h) | Lilian | claimed 12 Oct |
 | 7 | `abl_adaptformer_only` | | AdaptFormer alone at 5%, for the report | Lilian | done 12 Oct: 71.09% |
 | 8 | `abl_lora_only` | | LoRA alone at 5%, for the report | open | |
 
