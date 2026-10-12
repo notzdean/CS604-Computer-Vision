@@ -14,6 +14,7 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | zero-shot (head init only) | none | `lora_baseline` before training | 35.70 | 0 | 7.69M (init only) | - | - |
 | lora_r8_full | LoRA r=8, qkv | `lora_baseline` | 68.78 | 0.344 | 7.69M (trained) | 0.76 | not recorded here |
 | lora_adaptformer | LoRA r=12 qkv + AdaptFormer b=208 (FFN) | `lora_adaptformer` | 71.29 | 4.998 | 7.69M (trained) | 0.93 | not recorded here |
+| abl_adaptformer_only | AdaptFormer b=232 (FFN) | `abl_adaptformer_only` | 71.09 | 4.998 | 7.69M (trained) | 1.04 | not recorded here |
 
 Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
@@ -62,6 +63,38 @@ Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 - **Caveats:** the hold-out (20,000 images) has about 0.3 points of sampling error per run, so the 2.5-point gap is not sampling noise, and the leaderboard ranks the two runs the same way. But this run differs from the LoRA baseline in three things at once (rank 8 to 12, the added adapter, lr 5e-4 to 3e-4) and ran 0.76 epochs longer, so it does not show which part earned the gain. The `abl_*` trio below answers that. Single seed. The 4.998% share leaves almost no margin, so state the counting rule in the report.
 - **Log:** `results/lora_adaptformer/log.jsonl`.
 
+### abl_adaptformer_only (12 Oct 2026, Lilian)
+
+- **Setup:** `configs/abl_adaptformer_only.yaml`, ablation B of the equal-budget trio. AdaptFormer bottleneck 232 on every block's FFN (scale 0.1, zero-init up-projection), no LoRA. AdamW lr 3e-4, wd 0.01, batch 128, 10 epochs fixed, head trainable, nearest-class-mean head init (scale auto -> 0.02), bf16.
+- **Result:** hold-out top-1 71.09%, top-5 87.47%. Zero-shot 35.70% (same head init as the other runs).
+- **Efficiency:** 4,288,224 adapter params = 4.998% of backbone. Head (7.69M) not counted. Latency 9.2 ms (batch 1), against 11.3 ms for LoRA + AdaptFormer and 9.6 ms for LoRA r=8. Peak VRAM 6.5 GiB. Train 1.04 h on an A100 80 GB (1.74 h in 48 GB-equivalent, inside the 2 h budget), 10.0 epochs (33,590 steps). Throughput about 1,290 img/s, faster than LoRA + AdaptFormer (about 1,105 img/s).
+- **Loss:** training loss 3.30 at step 50, about 0.07 by epoch 10.
+- **Interpretation:**
+  - AdaptFormer alone (71.09%) is within 0.2 points of LoRA + AdaptFormer (71.29%, the `lora_adaptformer` run). That gap is inside the ~0.3-point sampling error, so at an equal ~5% budget the attention LoRA adds nothing measurable so far.
+  - It is the simpler design and has lower latency (9.2 vs 11.3 ms). The adapter is in parallel with the FFN, so it adds little time per block; the hand-written LoRA wrapper adds a second path to every `qkv`.
+  - Not yet a clean comparison: the 71.29% run used `lora_adaptformer` (7.8 epochs). The fair comparison point is `abl_combined` (10 epochs, run C), still to run. If C does not beat this run by about 1 point, the simpler AdaptFormer-only design is the better story for the report.
+- **Hold-out by epoch (from `results/abl_adaptformer_only/log.jsonl`):**
+
+  | Epoch | Hold-out top-1 | Top-5 | Hold-out loss | Train loss (epoch mean) |
+  |---|---|---|---|---|
+  | 1 | 64.37 | 85.38 | 1.513 | 1.89 |
+  | 2 | 66.47 | 86.60 | 1.457 | 0.96 |
+  | 3 | 67.45 | 86.19 | 1.495 | 0.59 |
+  | 4 | 68.09 | 86.17 | 1.529 | 0.38 |
+  | 5 | 68.69 | 86.46 | 1.520 | 0.25 |
+  | 6 | 69.45 | 86.92 | 1.492 | 0.17 |
+  | 7 | 70.17 | 86.99 | 1.467 | 0.12 |
+  | 8 | 70.62 | 87.33 | 1.443 | 0.09 |
+  | 9 | 70.98 | 87.44 | 1.430 | 0.08 |
+  | 10 | 71.09 | 87.47 | 1.426 | 0.07 |
+
+- **Loss curve:**
+  - Hold-out loss rises from epoch 2 to 4 (1.46 to 1.53) while training loss falls fast. That is the same over-confidence as the LoRA run.
+  - Unlike LoRA, it recovers: from epoch 5 the hold-out loss falls back to 1.43, the lowest of the run, as the cosine schedule lowers the learning rate. The run does not end over-fitted.
+  - Accuracy has nearly plateaued: +0.36 points in epoch 9 and +0.11 in epoch 10. More epochs at this lr would add little.
+  - Label smoothing (`tune_label_smoothing`) is still worth testing, aimed at the epoch 2 to 4 rise.
+- **Log:** `results/abl_adaptformer_only/log.jsonl`.
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -76,7 +109,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 4 | `tune_lr_high` | | run 2 + learning rate 5e-4 | open | |
 | 5 | `tune_lr_low` | | run 2 + learning rate 2e-4 | open | |
 | 6 | `tune_head_init` | | run 2 + classifier start from 43 images per class (about 1.25 h) | open | |
-| 7 | `abl_adaptformer_only` | | AdaptFormer alone at 5%, for the report | Lilian | claimed 12 Oct |
+| 7 | `abl_adaptformer_only` | | AdaptFormer alone at 5%, for the report | Lilian | done 12 Oct: 71.09% |
 | 8 | `abl_lora_only` | | LoRA alone at 5%, for the report | open | |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
@@ -92,7 +125,7 @@ All three use about 5% of the backbone, lr 3e-4, 10 epochs (about 1.18 h on an A
 | Run | Config | Design | Adapter % | Hold-out top-1 |
 |---|---|---|---|---|
 | A | `abl_lora_only` | LoRA r=116 on qkv | 4.984 | to run |
-| B | `abl_adaptformer_only` | AdaptFormer b=232 on FFN | 4.998 | to run |
+| B | `abl_adaptformer_only` | AdaptFormer b=232 on FFN | 4.998 | 71.09 |
 | C | `abl_combined` | LoRA r=12 on qkv + AdaptFormer b=208 on FFN | 4.998 | to run |
 
 How to read it: if C beats both A and B by about 1 point or more, adapting attention and FFN together is better than spending the same budget on one of them. If A or B matches C, the simpler design is the better story. Rank 116 has never been run, so watch its first loss lines.
