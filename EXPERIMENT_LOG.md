@@ -72,7 +72,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 |---|---|---|---|---|---|
 | 1 | `full_ft_baseline` | `ckpt_every_steps=1000000` | required baseline: the whole model is trained | Nicole | running since 11 Oct |
 | 2 | `abl_combined` | | our design for 10 epochs: the comparison point for runs 3 to 8 | Nicole | next |
-| 3 | `tune_label_smoothing` | | run 2 + label smoothing 0.1 | open | |
+| 3 | `tune_label_smoothing` | | run 2 + label smoothing 0.1 | Ryan | claimed 12 Oct |
 | 4 | `tune_lr_high` | | run 2 + learning rate 5e-4 | open | |
 | 5 | `tune_lr_low` | | run 2 + learning rate 2e-4 | open | |
 | 6 | `tune_head_init` | | run 2 + classifier start from 43 images per class (about 1.25 h) | open | |
