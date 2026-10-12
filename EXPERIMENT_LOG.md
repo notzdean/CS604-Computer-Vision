@@ -16,6 +16,8 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | lora_adaptformer | LoRA r=12 qkv + AdaptFormer b=208 (FFN) | `lora_adaptformer` | 71.29 | 4.998 | 7.69M (trained) | 0.93 | not recorded here |
 | tune_label_smoothing | LoRA r=12 qkv + AdaptFormer b=208, label smoothing 0.1, 10 epochs | `tune_label_smoothing` | 72.17 | 4.998 | 7.69M (trained) | 1.28 on A100 40GB (1.06 in 48 GB-equiv.) | not recorded here |
 | abl_lora_only | LoRA r=116, qkv | `abl_lora_only` | 70.76 | 4.984 | 7.69M (trained) | 1.17 on A100 40GB (0.98 in 48 GB-equiv.) | not recorded here |
+| tune_lr_high | LoRA r=12 qkv + AdaptFormer b=208, lr 5e-4, 10 epochs | `tune_lr_high` | 69.28 | 4.998 | 7.69M (trained) | 1.29 on A100 40GB (1.07 in 48 GB-equiv.) | not recorded here |
+| tune_lr_low | LoRA r=12 qkv + AdaptFormer b=208, lr 2e-4, 10 epochs | `tune_lr_low` | 72.37 | 4.998 | 7.69M (trained) | 1.28 on A100 40GB (1.07 in 48 GB-equiv.) | not recorded here |
 
 Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
@@ -118,6 +120,61 @@ Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
   - LoRA at r=116 (4.98%) beats LoRA at r=8 (0.34%, 68.78%) by 2 points, so extra rank helps, but much less than proportionally.
 - **Log:** `results/abl_lora_only/log.jsonl`.
 
+### tune_lr_high (13 Oct 2026, Ryan)
+
+- **Setup:** `configs/tune_lr_high.yaml` = `abl_combined` with one change, learning rate 5e-4 (baseline 3e-4). LoRA r=12 (alpha 24) on qkv + AdaptFormer b=208 on every FFN, AdamW wd 0.01, batch 128, 10 epochs fixed, label smoothing 0, head trainable, nearest-class-mean head init (scale auto -> 0.02), bf16.
+- **Result:** hold-out top-1 69.28%, top-5 85.92%, hold-out loss 1.818. Zero-shot 35.70%.
+- **Efficiency:** 4,287,936 adapter params = 4.998% of backbone. Head (7.69M) not counted. Latency 12.1 ms (batch 1). Peak VRAM 7.3 GiB. Train 1.29 h on an **A100 40 GB** (1.07 h in 48 GB-equivalent), 10.0 epochs (33,590 steps), about 1,010 img/s.
+- **Hold-out by epoch (from `results/tune_lr_high/log.jsonl`):**
+
+  | Epoch | Hold-out top-1 | Top-5 | Hold-out loss | Train loss (epoch mean) |
+  |---|---|---|---|---|
+  | 1 | 62.20 | 84.30 | 1.626 | 2.05 |
+  | 2 | 65.08 | 85.55 | 1.572 | 1.08 |
+  | 3 | 65.83 | 85.36 | 1.637 | 0.70 |
+  | 4 | 66.59 | 85.17 | 1.730 | 0.46 |
+  | 5 | 66.82 | 85.12 | 1.826 | 0.31 |
+  | 6 | 67.66 | 85.11 | 1.872 | 0.20 |
+  | 7 | 68.19 | 85.42 | 1.875 | 0.14 |
+  | 8 | 68.75 | 85.78 | 1.840 | 0.09 |
+  | 9 | 69.23 | 85.98 | 1.819 | 0.07 |
+  | 10 | 69.28 | 85.92 | 1.818 | 0.06 |
+
+- **Interpretation:**
+  - 1.77 points below `abl_combined` (71.05%, Nicole's run, recorded on origin/main, not on this branch). About 6 times the ~0.3-point sampling error, so a higher learning rate clearly hurts.
+  - Behind `abl_combined` at every epoch (62.20 vs 64.56 after epoch 1, 66.82 vs 68.77 after epoch 5), so the damage is done early, while the lr is high, and the cosine decay does not recover it.
+  - Strong over-confidence: training loss falls to 0.06 while the hold-out loss rises from 1.57 (epoch 2) to 1.88 (epoch 7) and ends at 1.82, against 1.416 for `abl_combined`. Top-5 is also lower (85.92 vs 87.52).
+- **Log:** `results/tune_lr_high/log.jsonl`.
+
+### tune_lr_low (13 Oct 2026, Ryan)
+
+- **Setup:** `configs/tune_lr_low.yaml` = `abl_combined` with one change, learning rate 2e-4 (baseline 3e-4). LoRA r=12 (alpha 24) on qkv + AdaptFormer b=208 on every FFN, AdamW wd 0.01, batch 128, 10 epochs fixed, label smoothing 0, head trainable, nearest-class-mean head init (scale auto -> 0.02), bf16.
+- **Result:** hold-out top-1 72.37%, top-5 88.52%, hold-out loss 1.258. Zero-shot 35.70%.
+- **Efficiency:** 4,287,936 adapter params = 4.998% of backbone. Head (7.69M) not counted. Latency 12.3 ms (batch 1). Peak VRAM 7.3 GiB. Train 1.28 h on an **A100 40 GB** (1.07 h in 48 GB-equivalent), 10.0 epochs (33,590 steps), about 1,010 img/s.
+- **Hold-out by epoch (from `results/tune_lr_low/log.jsonl`):**
+
+  | Epoch | Hold-out top-1 | Top-5 | Hold-out loss | Train loss (epoch mean) |
+  |---|---|---|---|---|
+  | 1 | 66.32 | 86.45 | 1.426 | 1.80 |
+  | 2 | 68.58 | 87.72 | 1.323 | 0.92 |
+  | 3 | 69.49 | 87.86 | 1.324 | 0.58 |
+  | 4 | 70.30 | 88.08 | 1.313 | 0.39 |
+  | 5 | 70.68 | 87.95 | 1.311 | 0.27 |
+  | 6 | 71.29 | 88.17 | 1.295 | 0.19 |
+  | 7 | 71.58 | 88.31 | 1.281 | 0.14 |
+  | 8 | 72.04 | 88.33 | 1.269 | 0.11 |
+  | 9 | 72.34 | 88.45 | 1.258 | 0.10 |
+  | 10 | 72.37 | 88.52 | 1.258 | 0.09 |
+
+- **Interpretation:**
+  - Best hold-out so far: +1.32 points over `abl_combined` (71.05%, Nicole's run, recorded on origin/main, not on this branch), about 4 times the ~0.3-point sampling error. It also beats `tune_label_smoothing` (72.17%), but only by 0.20 points, which is a tie.
+  - Ahead of `abl_combined` at every epoch (66.32 vs 64.56 after epoch 1, 70.68 vs 68.77 after epoch 5).
+  - No over-confidence rise: the hold-out loss falls from 1.43 to 1.26 and never climbs (1.323 to 1.324 at epoch 3 is flat), unlike `abl_combined` (1.44 up to 1.52 at epoch 5) and `tune_lr_high` (1.57 up to 1.88). 1.258 is the lowest hold-out loss of any run, below full fine-tuning (1.308). Training loss still reaches 0.09, close to `abl_combined`'s 0.07.
+  - Learning-rate direction: 5e-4 -> 69.28, 3e-4 -> 71.05, 2e-4 -> 72.37. Lower is better over this range. 2e-4 is the edge of the range tried, so the optimum may be lower still.
+  - Still rising slightly at the end (+0.31 in epoch 9, +0.03 in epoch 10), so close to its plateau.
+  - Next step from the plan in "3. One-change tuning": lr 2e-4 and label smoothing 0.1 both went up, so they are the candidates to combine in one final config, kept only if it beats `abl_combined` by about 1 point (lr 2e-4 alone already does). Single seed.
+- **Log:** `results/tune_lr_low/log.jsonl`.
+
 ### Note: head init on 40 GB GPUs (fixed 12 Oct 2026, Ryan)
 
 Before this fix every run crashed on an A100 40 GB during the head init (CUDA out of memory). `forward_head(pre_logits=True)` returns a view of the whole (batch, 197, 768) token tensor, so keeping it per batch held about 145 MB each, about 56 GB over the 100k head-init images. It fitted on 80 GB cards only. `common/head_init.py` now clones the CLS features. The values are identical, so earlier runs are unaffected. Peak memory of the head init drops to about 2 GB.
@@ -133,8 +190,8 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 1 | `full_ft_baseline` | `ckpt_every_steps=1000000` | required baseline: the whole model is trained | Nicole | running since 11 Oct |
 | 2 | `abl_combined` | | our design for 10 epochs: the comparison point for runs 3 to 8 | Nicole | next |
 | 3 | `tune_label_smoothing` | | run 2 + label smoothing 0.1 | Ryan | done 12 Oct: 72.17% |
-| 4 | `tune_lr_high` | | run 2 + learning rate 5e-4 | Ryan | claimed 12 Oct |
-| 5 | `tune_lr_low` | | run 2 + learning rate 2e-4 | Ryan | claimed 12 Oct |
+| 4 | `tune_lr_high` | | run 2 + learning rate 5e-4 | Ryan | done 13 Oct: 69.28% |
+| 5 | `tune_lr_low` | | run 2 + learning rate 2e-4 | Ryan | done 13 Oct: 72.37% |
 | 6 | `tune_head_init` | | run 2 + classifier start from 43 images per class (about 1.25 h) | open | |
 | 7 | `abl_adaptformer_only` | | AdaptFormer alone at 5%, for the report | open | |
 | 8 | `abl_lora_only` | | LoRA alone at 5%, for the report | Ryan | done 12 Oct: 70.76% |
@@ -165,8 +222,8 @@ Each config is `abl_combined` with exactly one setting changed, so it is compare
 |---|---|---|---|
 | `abl_combined` | none: the baseline, 10 epochs (the earlier run stopped at 7.8) | uses the whole time budget | to run |
 | `tune_label_smoothing` | label smoothing 0.1 (0.0) | the LoRA run got over-confident (train loss 0.12, hold-out loss rising); the brief hints at loss design | 72.17 |
-| `tune_lr_low` | lr 2e-4 (3e-4) | 3e-4 was never tuned | to run |
-| `tune_lr_high` | lr 5e-4 (3e-4) | 3e-4 was never tuned | to run |
+| `tune_lr_low` | lr 2e-4 (3e-4) | 3e-4 was never tuned | 72.37 |
+| `tune_lr_high` | lr 5e-4 (3e-4) | 3e-4 was never tuned | 69.28 |
 | `tune_head_init` | head init from 43 images per class (10) | zero-shot 35.7% vs the brief's 43.7% | to run |
 
 How to decide: one change worth a few tenths of a point cannot be told apart from noise on its own (about 0.3 points of sampling error per run). So after these runs, make one config with every change that went up, run it once, and keep it only if it beats `abl_combined` clearly (about 1 point). That combined run is the one to submit.

@@ -3,3 +3,5 @@ lora_r8_full,Nicole,lora,68.78,85.78,35.7,294912,0.344,7690000,9.6,0.759,NVIDIA 
 lora_adaptformer,Nicole,lora_adaptformer,71.29,88.02,35.7,4287936,4.998,7690000,11.3,0.926,NVIDIA A100-SXM4-80GB,80,1.544,7.3,7.78,26123,0.0003,128,,
 tune_label_smoothing,Ryan,lora_adaptformer,72.17,88.03,35.7,4287936,4.998,7690000,11.9,1.276,NVIDIA A100-SXM4-40GB,40,1.063,7.3,10.0,33590,0.0003,128,,tuning: label smoothing 0.1 vs abl_combined
 abl_lora_only,Ryan,lora,70.76,87.47,35.7,4276224,4.984,7690000,10.4,1.173,NVIDIA A100-SXM4-40GB,40,0.978,6.8,10.0,33590,0.0003,128,,ablation A: LoRA only at about 5%
+tune_lr_high,Ryan,lora_adaptformer,69.28,85.92,35.7,4287936,4.998,7690000,12.1,1.285,NVIDIA A100-SXM4-40GB,40,1.07,7.3,10.0,33590,0.0005,128,,tuning: lr 5e-4 vs abl_combined
+tune_lr_low,Ryan,lora_adaptformer,72.37,88.52,35.7,4287936,4.998,7690000,12.3,1.282,NVIDIA A100-SXM4-40GB,40,1.069,7.3,10.0,33590,0.0002,128,,tuning: lr 2e-4 vs abl_combined
