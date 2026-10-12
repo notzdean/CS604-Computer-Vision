@@ -1,0 +1,22 @@
+{
+ "name": "tune_label_smoothing",
+ "who": "Ryan",
+ "method": "lora_adaptformer",
+ "holdout_top1": 72.17,
+ "holdout_top5": 88.03,
+ "zero_shot_top1": 35.7,
+ "trainable_params": 4287936,
+ "trainable_pct": 4.998,
+ "head_params": 7690000,
+ "latency_ms_bs1": 11.9,
+ "train_hours": 1.276,
+ "gpu": "NVIDIA A100-SXM4-40GB",
+ "gpu_gb": 40,
+ "equiv_hours_48gb": 1.063,
+ "peak_vram_gib": 7.3,
+ "epochs": 10.0,
+ "steps": 33590,
+ "lr": 0.0003,
+ "batch_size": 128,
+ "notes": "tuning: label smoothing 0.1 vs abl_combined"
+}

@@ -1,3 +1,5 @@
 name,who,method,holdout_top1,holdout_top5,zero_shot_top1,trainable_params,trainable_pct,head_params,latency_ms_bs1,train_hours,gpu,gpu_gb,equiv_hours_48gb,peak_vram_gib,epochs,steps,lr,batch_size,leaderboard_val_top1,notes
 lora_r8_full,Nicole,lora,68.78,85.78,35.7,294912,0.344,7690000,9.6,0.759,NVIDIA A100-SXM4-80GB,80,1.265,6.7,7.02,23582,0.0005,128,,
 lora_adaptformer,Nicole,lora_adaptformer,71.29,88.02,35.7,4287936,4.998,7690000,11.3,0.926,NVIDIA A100-SXM4-80GB,80,1.544,7.3,7.78,26123,0.0003,128,,
+tune_label_smoothing,Ryan,lora_adaptformer,72.17,88.03,35.7,4287936,4.998,7690000,11.9,1.276,NVIDIA A100-SXM4-40GB,40,1.063,7.3,10.0,33590,0.0003,128,,tuning: label smoothing 0.1 vs abl_combined
+abl_lora_only,Ryan,lora,70.76,87.47,35.7,4276224,4.984,7690000,10.4,1.173,NVIDIA A100-SXM4-40GB,40,0.978,6.8,10.0,33590,0.0003,128,,ablation A: LoRA only at about 5%

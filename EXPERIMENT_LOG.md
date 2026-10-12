@@ -14,6 +14,8 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | zero-shot (head init only) | none | `lora_baseline` before training | 35.70 | 0 | 7.69M (init only) | - | - |
 | lora_r8_full | LoRA r=8, qkv | `lora_baseline` | 68.78 | 0.344 | 7.69M (trained) | 0.76 | not recorded here |
 | lora_adaptformer | LoRA r=12 qkv + AdaptFormer b=208 (FFN) | `lora_adaptformer` | 71.29 | 4.998 | 7.69M (trained) | 0.93 | not recorded here |
+| tune_label_smoothing | LoRA r=12 qkv + AdaptFormer b=208, label smoothing 0.1, 10 epochs | `tune_label_smoothing` | 72.17 | 4.998 | 7.69M (trained) | 1.28 on A100 40GB (1.06 in 48 GB-equiv.) | not recorded here |
+| abl_lora_only | LoRA r=116, qkv | `abl_lora_only` | 70.76 | 4.984 | 7.69M (trained) | 1.17 on A100 40GB (0.98 in 48 GB-equiv.) | not recorded here |
 
 Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
@@ -62,6 +64,64 @@ Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 - **Caveats:** the hold-out (20,000 images) has about 0.3 points of sampling error per run, so the 2.5-point gap is not sampling noise, and the leaderboard ranks the two runs the same way. But this run differs from the LoRA baseline in three things at once (rank 8 to 12, the added adapter, lr 5e-4 to 3e-4) and ran 0.76 epochs longer, so it does not show which part earned the gain. The `abl_*` trio below answers that. Single seed. The 4.998% share leaves almost no margin, so state the counting rule in the report.
 - **Log:** `results/lora_adaptformer/log.jsonl`.
 
+### tune_label_smoothing (12 Oct 2026, Ryan)
+
+- **Setup:** `configs/tune_label_smoothing.yaml` = `abl_combined` with one change, label smoothing 0.1 (baseline 0.0). LoRA r=12 (alpha 24) on qkv + AdaptFormer b=208 on every FFN, AdamW lr 3e-4, wd 0.01, batch 128, 10 epochs fixed, head trainable, nearest-class-mean head init (scale auto -> 0.02), bf16.
+- **Result:** hold-out top-1 72.17%, top-5 88.03%. Zero-shot 35.70% (same head init as the other runs).
+- **Efficiency:** 4,287,936 adapter params = 4.998% of backbone. Head (7.69M) not counted. Latency 11.9 ms (batch 1). Peak VRAM 7.3 GiB. Train 1.28 h on an **A100 40 GB** (1.06 h in 48 GB-equivalent, inside the 2 h budget), 10.0 epochs (33,590 steps), about 1,010 img/s.
+- **Hold-out by epoch (from `results/tune_label_smoothing/log.jsonl`):**
+
+  | Epoch | Hold-out top-1 | Top-5 | Hold-out loss | Train loss (epoch mean) |
+  |---|---|---|---|---|
+  | 1 | 64.71 | 85.97 | 1.617 | 3.12 |
+  | 2 | 67.60 | 87.30 | 1.517 | 2.35 |
+  | 3 | 68.75 | 87.21 | 1.541 | 2.05 |
+  | 4 | 69.21 | 87.22 | 1.545 | 1.88 |
+  | 5 | 70.06 | 87.36 | 1.552 | 1.76 |
+  | 6 | 70.72 | 87.62 | 1.574 | 1.67 |
+  | 7 | 71.33 | 87.81 | 1.568 | 1.60 |
+  | 8 | 71.83 | 87.92 | 1.586 | 1.56 |
+  | 9 | 72.14 | 87.95 | 1.596 | 1.54 |
+  | 10 | 72.17 | 88.03 | 1.604 | 1.52 |
+
+- **Interpretation:**
+  - Best hold-out so far: +0.88 points over `lora_adaptformer` (71.29%). That run is the same design but stopped at 7.8 epochs. At epoch 8 this run was already at 71.83%, so label smoothing looks worth about +0.5 points and the extra epochs the rest. The clean comparison is `abl_combined` (run 2), not run yet.
+  - Still rising at the end (+0.3 in epoch 9, +0.04 in epoch 10), so close to its plateau.
+  - The hold-out loss (plain cross-entropy) rises slowly from epoch 2 (1.52 to 1.60) while accuracy keeps climbing. Expected with smoothing: the model is trained never to be fully sure, so its correct answers get less probability. Compare accuracy, not loss, with the unsmoothed runs.
+  - Training loss cannot go below about 1.25 with smoothing 0.1 over 10,000 classes (the entropy of the smoothed target), so the 1.52 at the end is near that floor and not comparable to the 0.07 of the unsmoothed runs.
+- **Log:** `results/tune_label_smoothing/log.jsonl`.
+
+### abl_lora_only (12 Oct 2026, Ryan)
+
+- **Setup:** `configs/abl_lora_only.yaml`, ablation A of the equal-budget trio. LoRA r=116 (alpha 232) on every block's `qkv`, no AdaptFormer. AdamW lr 3e-4, wd 0.01, batch 128, 10 epochs fixed, head trainable, nearest-class-mean head init (scale auto -> 0.02), bf16.
+- **Result:** hold-out top-1 70.76%, top-5 87.47%. Zero-shot 35.70%.
+- **Efficiency:** 4,276,224 adapter params = 4.984% of backbone. Head (7.69M) not counted. Latency 10.4 ms (batch 1). Peak VRAM 6.8 GiB. Train 1.17 h on an **A100 40 GB** (0.98 h in 48 GB-equivalent), 10.0 epochs (33,590 steps), about 1,110 img/s.
+- **Loss:** training loss 3.24 at step 50. Rank 116 trained without trouble (the queue flagged it as never run).
+- **Hold-out by epoch (from `results/abl_lora_only/log.jsonl`):**
+
+  | Epoch | Hold-out top-1 | Top-5 | Hold-out loss | Train loss (epoch mean) |
+  |---|---|---|---|---|
+  | 1 | 63.48 | 84.91 | 1.560 | 1.93 |
+  | 2 | 65.97 | 85.86 | 1.494 | 1.06 |
+  | 3 | 66.29 | 85.72 | 1.538 | 0.71 |
+  | 4 | 67.23 | 85.64 | 1.562 | 0.48 |
+  | 5 | 67.71 | 86.03 | 1.564 | 0.32 |
+  | 6 | 68.78 | 86.12 | 1.539 | 0.21 |
+  | 7 | 69.72 | 86.88 | 1.476 | 0.14 |
+  | 8 | 70.30 | 87.24 | 1.449 | 0.10 |
+  | 9 | 70.61 | 87.49 | 1.429 | 0.08 |
+  | 10 | 70.76 | 87.47 | 1.420 | 0.07 |
+
+- **Interpretation:**
+  - Equal-budget trio so far: LoRA only 70.76 (A), AdaptFormer only 71.09 (B), combined still to run (C, `abl_combined`). A and B are 0.33 points apart, about the ~0.3-point sampling error, so neither design is clearly better on accuracy alone. AdaptFormer only is faster (9.2 vs 10.4 ms).
+  - Same over-confidence pattern as the other unsmoothed runs: training loss falls to 0.07 while the hold-out loss rises from epoch 2 to 5 (1.49 to 1.56), then recovers to 1.42 as the cosine schedule lowers the lr.
+  - LoRA at r=116 (4.98%) beats LoRA at r=8 (0.34%, 68.78%) by 2 points, so extra rank helps, but much less than proportionally.
+- **Log:** `results/abl_lora_only/log.jsonl`.
+
+### Note: head init on 40 GB GPUs (fixed 12 Oct 2026, Ryan)
+
+Before this fix every run crashed on an A100 40 GB during the head init (CUDA out of memory). `forward_head(pre_logits=True)` returns a view of the whole (batch, 197, 768) token tensor, so keeping it per batch held about 145 MB each, about 56 GB over the 100k head-init images. It fitted on 80 GB cards only. `common/head_init.py` now clones the CLS features. The values are identical, so earlier runs are unaffected. Peak memory of the head init drops to about 2 GB.
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -72,12 +132,12 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 |---|---|---|---|---|---|
 | 1 | `full_ft_baseline` | `ckpt_every_steps=1000000` | required baseline: the whole model is trained | Nicole | running since 11 Oct |
 | 2 | `abl_combined` | | our design for 10 epochs: the comparison point for runs 3 to 8 | Nicole | next |
-| 3 | `tune_label_smoothing` | | run 2 + label smoothing 0.1 | Ryan | claimed 12 Oct |
+| 3 | `tune_label_smoothing` | | run 2 + label smoothing 0.1 | Ryan | done 12 Oct: 72.17% |
 | 4 | `tune_lr_high` | | run 2 + learning rate 5e-4 | open | |
 | 5 | `tune_lr_low` | | run 2 + learning rate 2e-4 | open | |
 | 6 | `tune_head_init` | | run 2 + classifier start from 43 images per class (about 1.25 h) | open | |
 | 7 | `abl_adaptformer_only` | | AdaptFormer alone at 5%, for the report | open | |
-| 8 | `abl_lora_only` | | LoRA alone at 5%, for the report | Ryan | claimed 12 Oct |
+| 8 | `abl_lora_only` | | LoRA alone at 5%, for the report | Ryan | done 12 Oct: 70.76% |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
 
@@ -91,7 +151,7 @@ All three use about 5% of the backbone, lr 3e-4, 10 epochs (about 1.18 h on an A
 
 | Run | Config | Design | Adapter % | Hold-out top-1 |
 |---|---|---|---|---|
-| A | `abl_lora_only` | LoRA r=116 on qkv | 4.984 | to run |
+| A | `abl_lora_only` | LoRA r=116 on qkv | 4.984 | 70.76 |
 | B | `abl_adaptformer_only` | AdaptFormer b=232 on FFN | 4.998 | to run |
 | C | `abl_combined` | LoRA r=12 on qkv + AdaptFormer b=208 on FFN | 4.998 | to run |
 
@@ -104,7 +164,7 @@ Each config is `abl_combined` with exactly one setting changed, so it is compare
 | Config | The one change (baseline value) | Why | Hold-out top-1 |
 |---|---|---|---|
 | `abl_combined` | none: the baseline, 10 epochs (the earlier run stopped at 7.8) | uses the whole time budget | to run |
-| `tune_label_smoothing` | label smoothing 0.1 (0.0) | the LoRA run got over-confident (train loss 0.12, hold-out loss rising); the brief hints at loss design | to run |
+| `tune_label_smoothing` | label smoothing 0.1 (0.0) | the LoRA run got over-confident (train loss 0.12, hold-out loss rising); the brief hints at loss design | 72.17 |
 | `tune_lr_low` | lr 2e-4 (3e-4) | 3e-4 was never tuned | to run |
 | `tune_lr_high` | lr 5e-4 (3e-4) | 3e-4 was never tuned | to run |
 | `tune_head_init` | head init from 43 images per class (10) | zero-shot 35.7% vs the brief's 43.7% | to run |
