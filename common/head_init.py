@@ -50,7 +50,8 @@ def ncm_head_init(model, train_rows, device, per_class=10, batch_size=256, worke
     for x, y in make_loader(rows, eval_tf(), batch_size, workers=workers):
         with torch.autocast(device.type, dtype=amp, enabled=amp is not None):
             f = model.forward_head(model.forward_features(x.to(device, non_blocking=True)), pre_logits=True)
-        feats.append(f.float()); labels.append(y.to(device))
+        # clone: f is an fp32 view of the CLS token, keeping it would keep the whole (B, 197, 768) batch alive
+        feats.append(f.float().clone()); labels.append(y.to(device))
     feats, labels = torch.cat(feats), torch.cat(labels)
 
     sums = torch.zeros(n_cls, dim, device=device).index_add_(0, labels, feats)
