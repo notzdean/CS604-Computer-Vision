@@ -1,0 +1,16 @@
+# Depth ablation (equal budget, about 5% of backbone): AdaptFormer only in the LAST 6 of the 12 blocks,
+# with twice the bottleneck (464 instead of 232) = 4.993%. Everything else as abl_adaptformer_only.
+# Why: the early blocks detect general features and are already good; fine-grained classes are decided in the
+# late blocks, so the 5% may be better spent there. Compare with abl_adaptformer_only (all 12 blocks, 71.09%).
+name: abl_adaptformer_last6
+method: adaptformer
+method_args: {bottleneck: 464, scale: 0.1, last_n: 6}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 3.0e-4
+head_lr_mult: 1.0
+weight_decay: 0.01
+label_smoothing: 0.0
+head_init: true
+notes: "depth ablation: AdaptFormer in the last 6 blocks only at about 5%"

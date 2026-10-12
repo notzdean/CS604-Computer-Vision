@@ -1,0 +1,22 @@
+{
+ "name": "full_ft_baseline",
+ "who": "Nicole",
+ "method": "full_ft",
+ "holdout_top1": 72.53,
+ "holdout_top5": 88.44,
+ "zero_shot_top1": 35.7,
+ "trainable_params": 85798656,
+ "trainable_pct": 100.0,
+ "head_params": 7690000,
+ "latency_ms_bs1": 7.0,
+ "train_hours": 1.134,
+ "gpu": "NVIDIA A100-SXM4-80GB",
+ "gpu_gb": 80,
+ "equiv_hours_48gb": 1.89,
+ "peak_vram_gib": 9.6,
+ "epochs": 9.33,
+ "steps": 31352,
+ "lr": 3e-05,
+ "batch_size": 128,
+ "notes": ""
+}

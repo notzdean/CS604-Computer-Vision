@@ -33,6 +33,8 @@ Things to know before you start:
 - **A second run in the same session** needs no new download: change `CONFIG` and Run All again.
 - **A disconnect** loses the dataset on the Colab machine, but not the run. Run All again and training resumes from the
   last checkpoint on Drive.
+- **Forgot the submission cell, or need a zip for someone else's run?** Use `notebooks/03_make_submission.ipynb`.
+  It needs the run's `config.yaml` and `final.pt` in your own Drive and trains nothing.
 - **Drive space:** about 0.2 GB per adapter run, about 1.5 GB for full fine-tuning.
 - **Do not upload to CodaBench** unless you are the person handling submissions (5 per day in Phase 1, 2 in total in
   Phase 2). Leaderboard scores are not written in this public repo.
@@ -49,7 +51,8 @@ common/      SHARED. Change only by pull request that all 3 of us agree on.
   submit.py    predict val/test, write + validate + zip the CodaBench file
 methods/     One file per adaptation method: apply(model, args) -> model. Register in methods/__init__.py.
 configs/     One yaml per run. abl_* = equal-budget ablation, tune_* = abl_combined with one setting changed.
-notebooks/   00 data setup/check, 01 throughput test, 02 train + submit (the one you normally need).
+notebooks/   00 data setup/check, 01 throughput test, 02 train + submit (the one you normally need),
+             03 make the CodaBench zip from a finished run (no training).
 results/     results.csv (one row per run) and <run>/log.jsonl + summary.json for each finished run.
 EXPERIMENT_LOG.md   results, interpretation, run queue. CLAUDE.md = notes for coding agents.
 ```
@@ -73,4 +76,4 @@ Without the notebook, from the repo root on a GPU machine:
 
 The pipeline works end to end on an A100, including the CodaBench file. On our hold-out (2 labelled training images per
 class): LoRA rank 8 reaches 68.78% with 0.34% of the backbone trained, and LoRA + AdaptFormer reaches 71.29% with 4.998%.
-Full fine-tuning (the required baseline) is running; the ablation and tuning runs are queued. Hyper-parameters are lightly tuned at best.
+Full fine-tuning (the required baseline, 100% trained) reaches 72.53%; the same LoRA + AdaptFormer design trained for 10 epochs reaches 71.05%, and AdaptFormer alone at the same 5% reaches 71.09%. The remaining ablation and tuning runs are queued. Hyper-parameters are lightly tuned at best.

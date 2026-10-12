@@ -1,3 +1,6 @@
 name,who,method,holdout_top1,holdout_top5,zero_shot_top1,trainable_params,trainable_pct,head_params,latency_ms_bs1,train_hours,gpu,gpu_gb,equiv_hours_48gb,peak_vram_gib,epochs,steps,lr,batch_size,leaderboard_val_top1,notes
 lora_r8_full,Nicole,lora,68.78,85.78,35.7,294912,0.344,7690000,9.6,0.759,NVIDIA A100-SXM4-80GB,80,1.265,6.7,7.02,23582,0.0005,128,,
 lora_adaptformer,Nicole,lora_adaptformer,71.29,88.02,35.7,4287936,4.998,7690000,11.3,0.926,NVIDIA A100-SXM4-80GB,80,1.544,7.3,7.78,26123,0.0003,128,,
+full_ft_baseline,Nicole,full_ft,72.53,88.44,35.7,85798656,100.0,7690000,7.0,1.134,NVIDIA A100-SXM4-80GB,80,1.89,9.6,9.33,31352,3e-05,128,,
+abl_combined,Nicole,lora_adaptformer,71.05,87.52,35.7,4287936,4.998,7690000,11.4,1.183,NVIDIA A100-SXM4-80GB,80,1.972,7.3,10.0,33590,0.0003,128,,ablation C: LoRA + AdaptFormer at about 5%
+abl_adaptformer_only,lilian,adaptformer,71.09,87.47,35.7,4288224,4.998,7690000,9.2,1.043,NVIDIA A100-SXM4-80GB,80,1.738,6.5,10.0,33590,0.0003,128,,ablation B: AdaptFormer only at about 5%

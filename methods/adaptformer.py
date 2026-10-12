@@ -23,12 +23,13 @@ class ParallelAdapterMLP(nn.Module):
 
 
 def apply(model, args):
-    """AdaptFormer on every transformer block's FFN. Only the adapters and the head are trained.
-    args: bottleneck (default 64), scale (default 0.1)."""
+    """AdaptFormer on the FFN of the transformer blocks. Only the adapters and the head are trained.
+    args: bottleneck (default 64), scale (default 0.1), last_n (default: every block; N = only the last N blocks)."""
     bottleneck = args.get("bottleneck", 64)
     scale = args.get("scale", 0.1)
+    last_n = args.get("last_n") or len(model.blocks)
     dim = model.embed_dim
-    for blk in model.blocks:
+    for blk in list(model.blocks)[-last_n:]:
         blk.mlp = ParallelAdapterMLP(blk.mlp, dim, bottleneck, scale)
     model.requires_grad_(False)
     for name, p in model.named_parameters():

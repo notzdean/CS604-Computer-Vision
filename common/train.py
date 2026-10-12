@@ -3,6 +3,7 @@
     python -m common.train configs/lora.yaml [key=value ...]      (run from the repo root)
 
 - Trains on `train` minus a fixed labelled hold-out; scores on the hold-out (val/test labels are withheld).
+  `holdout_per_class=0` trains on every labelled image (final model only): no local score, hold-out columns stay empty.
 - Precision: bf16 on Ampere+ GPUs, fp16 + loss scaling otherwise (T4), fp32 on CPU.
 - Resumable: state is written to <out_dir>/latest.pt; re-running the same command continues from it.
 - Budget: `budget_hours: auto` -> 96 GB-hours / GPU size. If `epochs` is null the number of steps is chosen
@@ -64,7 +65,8 @@ def pick_amp(precision, device):
 
 
 @torch.no_grad()
-def evaluate(model, rows, cfg, device, amp):
+def evaluate(model, rows, cfg, device, amp, flip=False):
+    """flip=True: mirror averaging, the class probabilities of each image and of its mirror image are averaged."""
     model.eval()
     n = c1 = c5 = 0
     loss_sum = 0.0
@@ -72,11 +74,17 @@ def evaluate(model, rows, cfg, device, amp):
         x, y = x.to(device, non_blocking=True), y.to(device)
         with torch.autocast(device.type, dtype=amp, enabled=amp is not None):
             logits = model(x)
+            logits_m = model(x.flip(3)) if flip else None
         logits = logits.float()
-        top5 = logits.topk(min(5, logits.shape[1]), dim=1).indices
+        if flip:
+            scores = (logits.softmax(1) + logits_m.float().softmax(1)) / 2
+            loss_sum += F.nll_loss(scores.clamp_min(1e-12).log(), y, reduction="sum").item()
+        else:
+            scores = logits
+            loss_sum += F.cross_entropy(logits, y, reduction="sum").item()
+        top5 = scores.topk(min(5, scores.shape[1]), dim=1).indices
         c1 += (top5[:, 0] == y).sum().item()
         c5 += (top5 == y[:, None]).any(1).sum().item()
-        loss_sum += F.cross_entropy(logits, y, reduction="sum").item()
         n += len(y)
     return dict(top1=100 * c1 / n, top5=100 * c5 / n, loss=loss_sum / n, n=n)
 
@@ -142,6 +150,8 @@ def main(argv):
     spe = len(train_rows) // bs
     print(f"[{cfg['name']}] {gpu_name} ({gpu_gb} GB) | precision {amp} | train {len(train_rows)} hold-out {len(hold_rows)} "
           f"| {spe} steps/epoch")
+    if not hold_rows:       # holdout_per_class=0: final-model mode, every labelled image is used for training
+        print("no hold-out: this run cannot be scored locally, only on the leaderboard")
 
     latest = f"{out}/latest.pt"
     ck = torch.load(latest, map_location="cpu") if os.path.exists(latest) else None
@@ -174,7 +184,7 @@ def main(argv):
         opt.load_state_dict(ck["opt"]); scaler.load_state_dict(ck["scaler"])
         step, total_steps, zero_shot = ck["step"], ck["total_steps"], ck.get("zero_shot")
         print(f"resumed from step {step} (total {total_steps})")
-    elif cfg["head_init"] and cfg["eval_at_start"]:
+    elif cfg["head_init"] and cfg["eval_at_start"] and hold_rows:
         zero_shot = evaluate(model, hold_rows, cfg, device, amp)
         print(f"zero-shot (head init only) hold-out top-1: {zero_shot['top1']:.2f}%")
     budget_h = 96 / gpu_gb if cfg["budget_hours"] == "auto" and gpu_gb else (
@@ -246,20 +256,22 @@ def main(argv):
                 done = True
                 break
         if not done and (epoch + 1) % cfg["eval_every_epochs"] == 0:
-            ev = evaluate(model, hold_rows, cfg, device, amp)
-            emit(dict(kind="eval", step=step, epoch=step / spe, **ev))
-            print(f"== epoch {epoch + 1}: hold-out top-1 {ev['top1']:.2f}%  top-5 {ev['top5']:.2f}%  loss {ev['loss']:.3f}")
+            if hold_rows:
+                ev = evaluate(model, hold_rows, cfg, device, amp)
+                emit(dict(kind="eval", step=step, epoch=step / spe, **ev))
+                print(f"== epoch {epoch + 1}: hold-out top-1 {ev['top1']:.2f}%  top-5 {ev['top5']:.2f}%  loss {ev['loss']:.3f}")
             save_ckpt(latest)
 
     train_s = elapsed()
-    ev = evaluate(model, hold_rows, cfg, device, amp)
-    emit(dict(kind="eval", step=step, epoch=step / spe, **ev))
+    ev = evaluate(model, hold_rows, cfg, device, amp) if hold_rows else None
+    if ev:
+        emit(dict(kind="eval", step=step, epoch=step / spe, **ev))
     peak = torch.cuda.max_memory_allocated() / 2 ** 30 if device.type == "cuda" else 0.0
     lat = metrics.latency_ms(model, device, amp)
     atomic_save(trainable_state(model), f"{out}/final.pt")
     save_ckpt(latest)
-    row = dict(name=cfg["name"], who=cfg["who"], method=cfg["method"], holdout_top1=round(ev["top1"], 2),
-               holdout_top5=round(ev["top5"], 2), zero_shot_top1=round(zero_shot["top1"], 2) if zero_shot else "",
+    row = dict(name=cfg["name"], who=cfg["who"], method=cfg["method"], holdout_top1=round(ev["top1"], 2) if ev else "",
+               holdout_top5=round(ev["top5"], 2) if ev else "", zero_shot_top1=round(zero_shot["top1"], 2) if zero_shot else "",
                trainable_params=n_train, trainable_pct=round(100 * n_train / n_base, 3), head_params=n_head, latency_ms_bs1=round(lat, 1),
                train_hours=round(train_s / 3600, 3), gpu=gpu_name, gpu_gb=gpu_gb,
                equiv_hours_48gb=round(train_s / 3600 * gpu_gb / 48, 3) if gpu_gb else "", peak_vram_gib=round(peak, 1),
