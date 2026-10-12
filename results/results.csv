@@ -4,3 +4,4 @@ lora_adaptformer,Nicole,lora_adaptformer,71.29,88.02,35.7,4287936,4.998,7690000,
 full_ft_baseline,Nicole,full_ft,72.53,88.44,35.7,85798656,100.0,7690000,7.0,1.134,NVIDIA A100-SXM4-80GB,80,1.89,9.6,9.33,31352,3e-05,128,,
 abl_combined,Nicole,lora_adaptformer,71.05,87.52,35.7,4287936,4.998,7690000,11.4,1.183,NVIDIA A100-SXM4-80GB,80,1.972,7.3,10.0,33590,0.0003,128,,ablation C: LoRA + AdaptFormer at about 5%
 abl_adaptformer_only,lilian,adaptformer,71.09,87.47,35.7,4288224,4.998,7690000,9.2,1.043,NVIDIA A100-SXM4-80GB,80,1.738,6.5,10.0,33590,0.0003,128,,ablation B: AdaptFormer only at about 5%
+tune_head_init,lilian,lora_adaptformer,69.98,87.0,43.3,4287936,4.998,7690000,11.4,1.26,NVIDIA A100-SXM4-80GB,80,2.101,7.3,10.0,33590,0.0003,128,,tuning: head init from 43 images per class vs abl_combined

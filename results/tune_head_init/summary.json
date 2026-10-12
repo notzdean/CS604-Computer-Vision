@@ -1,0 +1,22 @@
+{
+ "name": "tune_head_init",
+ "who": "lilian",
+ "method": "lora_adaptformer",
+ "holdout_top1": 69.98,
+ "holdout_top5": 87.0,
+ "zero_shot_top1": 43.3,
+ "trainable_params": 4287936,
+ "trainable_pct": 4.998,
+ "head_params": 7690000,
+ "latency_ms_bs1": 11.4,
+ "train_hours": 1.26,
+ "gpu": "NVIDIA A100-SXM4-80GB",
+ "gpu_gb": 80,
+ "equiv_hours_48gb": 2.101,
+ "peak_vram_gib": 7.3,
+ "epochs": 10.0,
+ "steps": 33590,
+ "lr": 0.0003,
+ "batch_size": 128,
+ "notes": "tuning: head init from 43 images per class vs abl_combined"
+}

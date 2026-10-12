@@ -18,6 +18,7 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | full_ft_baseline | Full fine-tuning (required baseline) | `full_ft_baseline` | 72.53 | 100 | 7.69M (trained) | 1.13 | not recorded here |
 | abl_combined | LoRA r=12 qkv + AdaptFormer b=208 (FFN), 10 epochs | `abl_combined` | 71.05 | 4.998 | 7.69M (trained) | 1.18 | not recorded here |
 | abl_adaptformer_only | AdaptFormer b=232 (FFN) only, 10 epochs | `abl_adaptformer_only` | 71.09 | 4.998 | 7.69M (trained) | 1.04 | not recorded here |
+| tune_head_init | `abl_combined` + head init from 43 images per class | `tune_head_init` | 69.98 | 4.998 | 7.69M (trained) | 1.26 | not recorded here |
 
 Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
@@ -154,6 +155,36 @@ Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
   - Still open: does the FFN placement matter, or only the number of adapter parameters? `abl_lora_only` (same budget, attention only) answers that.
 - **Log:** `results/abl_adaptformer_only/log.jsonl`, `summary.json`.
 
+### tune_head_init (12 Oct 2026, lilian)
+
+- **Setup:** `configs/tune_head_init.yaml`: `abl_combined` with one change, the nearest-class-mean head init uses all 43 training images per class instead of 10 (scale auto -> 0.05).
+- **Result:** hold-out top-1 69.98%, top-5 87.00%, hold-out loss 1.565. Zero-shot 43.30% (35.70% with 10 per class).
+- **Efficiency:** same adapters as `abl_combined` (4,287,936 = 4.998%). Latency 11.4 ms (batch 1). Peak VRAM 7.3 GiB. Train 1.26 h on an A100 80 GB = 2.10 h in 48 GB-equivalent: over the 2 h budget, inside the +-10% tolerance. The head-init feature pass and the zero-shot evaluation took about 7 minutes before the first step; training ran at about 1,110 img/s.
+- **Bug found on the way:** the first attempt ran out of GPU memory (78 GB) in the head-init feature pass. `common/head_init.py` kept each CLS-token feature as a view of the whole fp32 block output, so every batch stayed on the GPU (about 155 MB per batch). With 10 per class this was about 61 GB and fitted on 80 GB; with 43 per class it does not. The run here used a one-line patch (`.clone()` the feature), proposed separately as a change to `common/`. The patch changes memory use only, not the numbers: earlier runs are unaffected.
+- **Hold-out by epoch (from `results/tune_head_init/log.jsonl`):**
+
+  | Epoch | Hold-out top-1 | Top-5 | Hold-out loss | `abl_combined` top-1 | `abl_combined` loss |
+  |---|---|---|---|---|---|
+  | 1 | 65.72 | 86.37 | 1.454 | 64.56 | 1.499 |
+  | 2 | 67.22 | 87.17 | 1.416 | 66.97 | 1.441 |
+  | 3 | 67.08 | 86.77 | 1.528 | 67.53 | 1.495 |
+  | 4 | 67.54 | 86.59 | 1.596 | 68.45 | 1.509 |
+  | 5 | 67.98 | 86.50 | 1.642 | 68.77 | 1.515 |
+  | 6 | 68.53 | 86.70 | 1.636 | 69.59 | 1.488 |
+  | 7 | 69.20 | 86.85 | 1.606 | 70.48 | 1.457 |
+  | 8 | 69.76 | 86.98 | 1.580 | 70.77 | 1.435 |
+  | 9 | 69.95 | 87.05 | 1.566 | 71.07 | 1.418 |
+  | 10 (final) | 69.98 | 87.00 | 1.565 | 71.05 | 1.416 |
+
+- **Training loss (mean per epoch):** 1.58, 0.86, 0.54, 0.36, 0.24, 0.16, 0.12, 0.09, 0.07, 0.07 (`abl_combined`: 1.87, 0.96, 0.59, 0.39, 0.26, ...).
+- **Interpretation:**
+  - The better start does not last: 69.98% against 71.05% for `abl_combined`, 1.07 points lower, about 2.3 times the sampling error of the difference (0.46). By the team's rule (under about 1 point is a tie) this is a loss, not a tie.
+  - The lead is gone by epoch 3. It is ahead at epochs 1 and 2 (+1.2, +0.3), then 0.5 to 1.3 points behind for the rest of the run and never catches up.
+  - Over-confidence is worse: the training loss is lower from the start, and the hold-out loss climbs from 1.42 (epoch 2) to 1.64 (epoch 5), against 1.44 to 1.52 for `abl_combined`, and ends at 1.565 against 1.416. A head that already fits the training images well lets the model memorise them sooner.
+  - Likely reason: the class means are computed on the same 43 images the model then trains on, so the head starts out fitted to the training set rather than just roughly right. With 10 images per class the remaining 33 are new to the head.
+  - Decision: keep 10 per class for the final config. 43 per class could be worth one more try together with label smoothing, which targets this over-confidence, but only if `tune_label_smoothing` gains on its own first.
+- **Log:** `results/tune_head_init/log.jsonl`, `summary.json`.
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -167,7 +198,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 3 | `tune_label_smoothing` | | run 2 + label smoothing 0.1 | open | |
 | 4 | `tune_lr_high` | | run 2 + learning rate 5e-4 | open | |
 | 5 | `tune_lr_low` | | run 2 + learning rate 2e-4 | open | |
-| 6 | `tune_head_init` | | run 2 + classifier start from 43 images per class (about 1.25 h) | lilian | running 12 Oct: snapshot at epoch 5 of 10 received, final result pending |
+| 6 | `tune_head_init` | | run 2 + classifier start from 43 images per class (about 1.25 h) | lilian | done 12 Oct: 69.98% (worse than run 2) |
 | 7 | `abl_adaptformer_only` | | AdaptFormer alone at 5%, for the report | lilian | done 12 Oct: 71.09% |
 | 8 | `abl_lora_only` | | LoRA alone at 5%, for the report | open | |
 | 9 | `abl_adaptformer_last6` | | AdaptFormer in the last 6 blocks only, twice the bottleneck; compare with run 7 | open | |
@@ -202,11 +233,11 @@ Each config is `abl_combined` with exactly one setting changed, so it is compare
 | `tune_label_smoothing` | label smoothing 0.1 (0.0) | the LoRA run got over-confident (train loss 0.12, hold-out loss rising); the brief hints at loss design | to run |
 | `tune_lr_low` | lr 2e-4 (3e-4) | 3e-4 was never tuned | to run |
 | `tune_lr_high` | lr 5e-4 (3e-4) | 3e-4 was never tuned | to run |
-| `tune_head_init` | head init from 43 images per class (10) | zero-shot 35.7% vs the brief's 43.7% | in progress (snapshot, 12 Oct): zero-shot 43.30%; ahead of `abl_combined` at epochs 1 and 2 (65.72 / 67.22 against 64.56 / 66.97), behind at epochs 3 and 4 (67.08 / 67.54 against 67.53 / 68.45), and its hold-out loss rises faster (1.60 against 1.51 at epoch 4). The head-init pass added about 5 minutes. |
+| `tune_head_init` | head init from 43 images per class (10) | zero-shot 35.7% vs the brief's 43.7% | 69.98 (zero-shot 43.30%): 1.07 below `abl_combined`, ahead only at epochs 1 and 2, hold-out loss higher from epoch 3 on. Keep 10 per class. |
 
 How to decide: one change worth a few tenths of a point cannot be told apart from noise on its own (about 0.3 points of sampling error per run). So after these runs, make one config with every change that went up, run it once, and keep it only if it beats `abl_combined` clearly (about 1 point). That combined run is the one to submit.
 
-`tune_head_init` ends near 1.25 h on an A100 80 GB (estimate: the extra feature pass adds 4 to 5 minutes), which is over the 1.2 h budget but inside the +-10% tolerance. Cheap check first: `EXTRA = "max_train_steps=50"` and read the zero-shot line.
+`tune_head_init` took 1.26 h on an A100 80 GB (the head-init pass and zero-shot evaluation add about 7 minutes), over the 1.2 h budget but inside the +-10% tolerance. Any run with `head_init_per_class` above about 12 needs the `common/head_init.py` memory fix, or it runs out of GPU memory before training starts.
 
 ### 4. Later-layer adapters and final-model extras (written 12 Oct, none run on a GPU yet)
 
