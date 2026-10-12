@@ -77,7 +77,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 5 | `tune_lr_low` | | run 2 + learning rate 2e-4 | open | |
 | 6 | `tune_head_init` | | run 2 + classifier start from 43 images per class (about 1.25 h) | open | |
 | 7 | `abl_adaptformer_only` | | AdaptFormer alone at 5%, for the report | open | |
-| 8 | `abl_lora_only` | | LoRA alone at 5%, for the report | open | |
+| 8 | `abl_lora_only` | | LoRA alone at 5%, for the report | Ryan | claimed 12 Oct |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
 
