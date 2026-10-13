@@ -1,0 +1,14 @@
+# Follows the learning-rate trend (5e-4 worse, 3e-4 baseline, 2e-4 better): the same as tune_ls_lr2e4 with an
+# even lower learning rate, 1e-4. One change away from tune_ls_lr2e4, so the pair shows whether lower is still better.
+name: tune_ls_lr1e4
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 1.0
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+notes: "combination: label smoothing 0.1 + lr 1e-4"
