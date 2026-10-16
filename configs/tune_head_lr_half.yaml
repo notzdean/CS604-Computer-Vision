@@ -1,0 +1,15 @@
+# Head learning-rate test: tune_ls_lr1e4 (label smoothing 0.1, lr 1e-4, the best run so far) with ONE change:
+# the classifier head learns at 0.5 x the adapters' rate (head lr 5e-5, adapters stay at 1e-4).
+# Shows whether the gain from a lower learning rate came from the head or from the adapters.
+name: tune_head_lr_half
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+notes: "head lr 0.5 x adapters (lr 1e-4, label smoothing 0.1)"

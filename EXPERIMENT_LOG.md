@@ -170,12 +170,14 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 6 | `tune_head_init` | | run 2 + classifier start from 43 images per class (about 1.25 h) | lilian | running 12 Oct: snapshot at epoch 5 of 10 received, final result pending |
 | 7 | `abl_adaptformer_only` | | AdaptFormer alone at 5%, for the report | lilian | done 12 Oct: 71.09% |
 | 8 | `abl_lora_only` | | LoRA alone at 5%, for the report | open | |
-| 9 | `abl_adaptformer_last6` | | AdaptFormer in the last 6 blocks only, twice the bottleneck; compare with run 7 | open | |
+| 9 | `abl_adaptformer_last6` | | AdaptFormer in the last 6 blocks only, twice the bottleneck; compare with run 7 | Nicole | done 16 Oct, files pending |
 | 10 | `tune_ls_lr2e4` | | run 2 + label smoothing 0.1 + learning rate 2e-4 (the two changes that each helped) | Nicole | done 16 Oct |
 | 11 | `tune_ls_lr1e4` | | run 10 with learning rate 1e-4 (does lower still help?) | Nicole | done 16 Oct: best so far |
-| 12 | `full_ft_ls` | | full fine-tuning + label smoothing 0.1, so the baseline gets the same trick | open | |
+| 12 | `full_ft_ls` | | full fine-tuning + label smoothing 0.1, so the baseline gets the same trick | Nicole | done 16 Oct, files pending |
 | 13 | `tune_ls_lr5e5` | | run 11 with learning rate 5e-5 (does lower still help?) | Nicole | next |
 | 14 | `tune_ls_lr3e5` | | run 11 with learning rate 3e-5; only if run 13 beats run 11 | open | |
+| 15 | `tune_head_lr_half` | | run 11 with the head at half the adapters' learning rate (head 5e-5) | open (friend) | |
+| 16 | `tune_head_lr_double` | | run 11 with the head at twice the adapters' learning rate (head 2e-4) | open (friend) | |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
 
