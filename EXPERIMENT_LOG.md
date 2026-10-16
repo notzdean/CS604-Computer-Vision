@@ -171,9 +171,11 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 7 | `abl_adaptformer_only` | | AdaptFormer alone at 5%, for the report | lilian | done 12 Oct: 71.09% |
 | 8 | `abl_lora_only` | | LoRA alone at 5%, for the report | open | |
 | 9 | `abl_adaptformer_last6` | | AdaptFormer in the last 6 blocks only, twice the bottleneck; compare with run 7 | open | |
-| 10 | `tune_ls_lr2e4` | | run 2 + label smoothing 0.1 + learning rate 2e-4 (the two changes that each helped) | Nicole | next |
-| 11 | `tune_ls_lr1e4` | | run 10 with learning rate 1e-4 (does lower still help?) | open | |
+| 10 | `tune_ls_lr2e4` | | run 2 + label smoothing 0.1 + learning rate 2e-4 (the two changes that each helped) | Nicole | done 16 Oct |
+| 11 | `tune_ls_lr1e4` | | run 10 with learning rate 1e-4 (does lower still help?) | Nicole | done 16 Oct: best so far |
 | 12 | `full_ft_ls` | | full fine-tuning + label smoothing 0.1, so the baseline gets the same trick | open | |
+| 13 | `tune_ls_lr5e5` | | run 11 with learning rate 5e-5 (does lower still help?) | Nicole | next |
+| 14 | `tune_ls_lr3e5` | | run 11 with learning rate 3e-5; only if run 13 beats run 11 | open | |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
 
@@ -207,7 +209,7 @@ Each config is `abl_combined` with exactly one setting changed, so it is compare
 | `tune_lr_high` | lr 5e-4 (3e-4) | 3e-4 was never tuned | to run |
 | `tune_head_init` | head init from 43 images per class (10) | zero-shot 35.7% vs the brief's 43.7% | in progress (snapshot, 12 Oct): zero-shot 43.30%; ahead of `abl_combined` at epochs 1 and 2 (65.72 / 67.22 against 64.56 / 66.97), behind at epochs 3 and 4 (67.08 / 67.54 against 67.53 / 68.45), and its hold-out loss rises faster (1.60 against 1.51 at epoch 4). The head-init pass added about 5 minutes. |
 
-Status on 13 Oct: runs 3, 4, 5 and 8 are finished and were scored on the leaderboard (scores are not written here). Label smoothing and the lower learning rate (2e-4) each gave a clear gain over `abl_combined`, the higher learning rate (5e-4) was clearly worse, and LoRA only was about level with AdaptFormer only and the combination. Their hold-out numbers are added when the run files arrive. Runs 10 to 12 follow from this.
+Status on 13 Oct: runs 3, 4, 5 and 8 are finished and were scored on the leaderboard (scores are not written here). Label smoothing and the lower learning rate (2e-4) each gave a clear gain over `abl_combined`, the higher learning rate (5e-4) was clearly worse, and LoRA only was about level with AdaptFormer only and the combination. Their hold-out numbers are added when the run files arrive. Runs 10 to 12 follow from this. Status on 16 Oct: on the leaderboard, combining label smoothing with lr 2e-4 (run 10) was no better than either change alone, but label smoothing with lr 1e-4 (run 11) gave a further clear gain and is the best 5% run so far, ahead of the full fine-tuning baseline. Runs 13 and 14 continue the learning-rate sweep downwards. Note that `lr` also sets the classifier head's learning rate (`head_lr_mult` 1).
 
 How to decide: one change worth a few tenths of a point cannot be told apart from noise on its own (about 0.3 points of sampling error per run). So after these runs, make one config with every change that went up, run it once, and keep it only if it beats `abl_combined` clearly (about 1 point). That combined run is the one to submit.
 

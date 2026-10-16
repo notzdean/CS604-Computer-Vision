@@ -1,0 +1,14 @@
+# Learning-rate sweep with label smoothing 0.1: 2e-4 and 1e-4 tested so far, and 1e-4 was clearly better.
+# Same as tune_ls_lr1e4 with lr 3.0e-5. One change away from tune_ls_lr1e4.
+name: tune_ls_lr3e5
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 3.0e-5
+head_lr_mult: 1.0
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+notes: "combination: label smoothing 0.1 + lr 3.0e-5"
