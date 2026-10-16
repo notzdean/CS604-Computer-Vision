@@ -1,0 +1,15 @@
+# Linear probing (row 1 of the course table): the best recipe so far (tune_ls_lr1e4: label smoothing 0.1,
+# lr 1e-4, 10 epochs) with the backbone frozen and NO adapters, so only the classifier head is trained (0% of backbone).
+# Compared with tune_ls_lr1e4 it shows how much the adapters add on top of a trained head.
+name: abl_linear_probe
+method: linear_probe
+method_args: {}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 1.0
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+notes: "linear probe: head only, backbone frozen (lr 1e-4, label smoothing 0.1)"

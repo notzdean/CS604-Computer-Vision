@@ -1,0 +1,16 @@
+# Better head start with the best recipe: tune_ls_lr1e4 (label smoothing 0.1, lr 1e-4) with ONE change: the head
+# starts from the mean of all 43 training images per class (zero-shot 43.3% instead of 35.7%). The first test of
+# this (tune_head_init) used the old, higher learning rate. The extra pass adds about 5 minutes (about 1.25 h total).
+name: tune_ls_lr1e4_init43
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 1.0
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+head_init_per_class: 43
+notes: "best recipe + head init from 43 images per class"
