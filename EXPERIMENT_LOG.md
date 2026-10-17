@@ -178,7 +178,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 14 | `tune_ls_lr3e5` | | run 11 with learning rate 3e-5; only if run 13 beats run 11 | open | |
 | 15 | `tune_head_lr_half` | | run 11 with the head at half the adapters' learning rate (head 5e-5) | open (friend) | |
 | 16 | `tune_head_lr_double` | | run 11 with the head at twice the adapters' learning rate (head 2e-4) | open (friend) | |
-| 17 | `abl_linear_probe` | | only the head is trained (backbone frozen, no adapters); compare with run 11 to see what the adapters add | open (friend) | |
+| 17 | `abl_linear_probe` | | only the head is trained (backbone frozen, no adapters); compare with run 11 to see what the adapters add | lilian | running 17 Oct |
 | 18 | `tune_ls_lr1e4_init43` | | run 11 + head start from all 43 images per class (about 1.25 h) | open (Nicole) | |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
