@@ -1,0 +1,14 @@
+# Head learning-rate trend (head 2e-4 worse, 1e-4 baseline, 5e-5 best so far): tune_head_lr_half with ONE change,
+# the head at a quarter of the adapters' rate (head 2.5e-5, adapters stay at 1e-4, label smoothing 0.1).
+name: tune_head_lr_quarter
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.25
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+notes: "head lr 0.25 x adapters (lr 1e-4, label smoothing 0.1)"

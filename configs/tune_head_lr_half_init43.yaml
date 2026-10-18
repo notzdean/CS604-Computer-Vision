@@ -1,0 +1,16 @@
+# Both head ideas together: tune_head_lr_half (head at half the adapters' rate, the best run so far) with ONE change,
+# the head starts from all 43 training images per class. A slowly learning head stays close to its starting point,
+# so a better start should matter more here. The extra pass adds about 5 minutes (about 1.25 h total).
+name: tune_head_lr_half_init43
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+head_init_per_class: 43
+notes: "head lr 0.5 x adapters + head init from 43 images per class"

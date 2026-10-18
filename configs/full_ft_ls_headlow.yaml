@@ -1,0 +1,15 @@
+# Fair-comparison run: full_ft_ls with ONE change, the head learns at the same rate as the backbone (3e-5)
+# instead of 10x (3e-4). The 5% model gained clearly from a slower head, so the baseline gets the same change.
+# Checkpoints are the whole model (about 1.1 GB), so they are only saved once per epoch.
+name: full_ft_ls_headlow
+method: full_ft
+epochs: null            # null -> as many epochs as fit in the budget (96 GB-hours / GPU size)
+budget_hours: auto
+batch_size: 128
+lr: 3.0e-5
+head_lr_mult: 1.0
+weight_decay: 0.05
+label_smoothing: 0.1
+head_init: true
+ckpt_every_steps: 1000000
+notes: "full fine-tuning + label smoothing 0.1 + head lr = backbone lr (fair comparison)"
