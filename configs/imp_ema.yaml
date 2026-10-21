@@ -1,0 +1,18 @@
+# Improvement run: tune_head_lr_half (best 5% run, 74.14%) with ONE change, an exponential moving average of the
+# trained weights (decay 0.9998, a time constant of about 5,000 steps = 1.5 epochs).
+# Why: averaging weights along the trajectory smooths out the noise of the last steps (a cheap form of model soups,
+# Wortsman et al. 2022). Only the 12M trainable weights are averaged; the hold-out evaluations and final.pt use the
+# EMA weights, so the submission is the averaged model. Costs nothing at inference.
+name: imp_ema
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+ema_decay: 0.9998
+notes: "tune_head_lr_half + weight EMA 0.9998"

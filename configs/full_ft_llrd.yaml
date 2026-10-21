@@ -1,0 +1,20 @@
+# Full fine-tuning with layer-wise learning-rate decay: full_ft_ls_headlow (run 21) with the one flat backbone rate
+# (3e-5) replaced by a rate that shrinks by 0.75 per block towards the input: top block 7.5e-5, middle 1.8e-5,
+# first block 3.2e-6, embeddings 2.4e-6. The head stays at 3e-5 as in run 21 (lr 1e-4 x head_lr_mult 0.3).
+# Why: with 45 images per class, full fine-tuning can distort the general early-layer features (Kumar et al. 2022);
+# layer-wise decay is the standard ViT fine-tuning recipe (BEiT, MAE) that keeps them close to the pre-trained ones
+# while the late layers adapt. Compare with run 21 (full_ft_ls_headlow).
+# Checkpoints are the whole model (about 1.1 GB), so they are only saved once per epoch.
+name: full_ft_llrd
+method: full_ft
+epochs: null            # null -> as many epochs as fit in the budget (96 GB-hours / GPU size)
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.3
+layer_decay: 0.75
+weight_decay: 0.05
+label_smoothing: 0.1
+head_init: true
+ckpt_every_steps: 1000000
+notes: "full_ft_ls_headlow + layer-wise lr decay 0.75 (top block 7.5e-5, head 3e-5)"

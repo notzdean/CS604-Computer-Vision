@@ -1,0 +1,17 @@
+# Improvement run: tune_head_lr_half (best 5% run, 74.14%) with ONE change, stochastic depth 0.1.
+# Why: with 45 images per class every run so far became over-confident (hold-out loss rising while the training loss
+# falls). Stochastic depth randomly skips a block's attention or FFN branch (adapters included) during training; it is
+# part of the standard ViT fine-tuning recipe (DeiT, BEiT, MAE) and costs nothing at inference.
+name: imp_droppath
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+drop_path_rate: 0.1
+notes: "tune_head_lr_half + stochastic depth 0.1"

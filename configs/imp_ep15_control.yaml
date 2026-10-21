@@ -1,0 +1,17 @@
+# Control for imp_mixup: tune_head_lr_half trained for 15 epochs instead of 10, nothing else changed.
+# Why: imp_mixup changes two things (Mixup and 15 epochs). Only run this if imp_mixup beats tune_head_lr_half; then it
+# shows how much of the gain is the longer schedule. Earlier evidence says little: the 10-epoch curve of
+# tune_head_lr_half is flat after epoch 6, and training abl_combined longer did not help.
+# GPU: A100 40 GB (budget 2.4 h), as for imp_mixup.
+name: imp_ep15_control
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 15
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+notes: "tune_head_lr_half, 15 epochs (control for imp_mixup, A100 40 GB)"

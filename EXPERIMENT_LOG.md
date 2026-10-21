@@ -331,6 +331,15 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 19 | `tune_head_lr_quarter` | | run 15 with the head at a quarter of the adapters' rate (head 2.5e-5) | Nicole | done: 74.02%, level with run 15 |
 | 20 | `tune_head_lr_half_init43` | | run 15 + head start from all 43 images per class (about 1.25 h) | open (Nicole) | |
 | 21 | `full_ft_ls_headlow` | | run 12 with the head at the backbone's rate (3e-5 instead of 3e-4), fair comparison | open (friend) | |
+| 22 | no training | | test-size check on a finished run: `python -m common.evaluate <run folder> --sizes 224 256 288` (minutes; see section 5) | open (lilian) | |
+| 23 | `imp_droppath` | | run 15 + stochastic depth 0.1 | open (lilian) | |
+| 24 | `imp_ema` | | run 15 + weight EMA 0.9998 (hold-out and final.pt use the averaged weights) | open (lilian) | |
+| 25 | `imp_mixup` | | run 15 + Mixup 0.8 / CutMix 1.0, 15 epochs. **A100 40 GB only** (about 1.9 h of the 2.4 h budget) | open (lilian) | |
+| 26 | `imp_trivialaug` | | run 15 + TrivialAugment + random erasing 0.25; stop if img/s falls well below 1,000 | open (lilian) | |
+| 27 | `full_ft_llrd` | `ckpt_every_steps=1000000` | run 21 + layer-wise lr decay 0.75; run after run 21 | open (lilian) | |
+| 28 | `imp_ep15_control` | | run 15 for 15 epochs, A100 40 GB; only if run 25 beats run 15 | - | |
+| 29 | (written after 22 to 27) | | run 15 + every change from 22 to 26 that gained about 0.5 points or more | - | |
+| 30 | run 29's config | `holdout_per_class=0` | final 5% model on all 45 images per class, new `RUN` name; leaderboard only | - | |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
 
@@ -389,6 +398,27 @@ How to decide: one change worth a few tenths of a point cannot be told apart fro
 | Check mirror averaging first | `python -m common.evaluate <run folder>` | prints hold-out top-1 with and without mirror averaging for a finished run, in about a minute and without training |
 
 Moving the 5% between attention and FFN is covered by runs A to C above.
+
+### 5. Regularisation and fine-tuning recipe (planned 21 Oct 2026, queue runs 22 to 30)
+
+Why: at an equal 5% budget the adapter design did not matter (LoRA, AdaptFormer and both tie), and the PEFT literature on few-shot fine-grained benchmarks (VTAB-1k, FGVC) shows the same: methods land within about 1 point of each other. Every gain so far came from regularisation and from how the head is trained (label smoothing, lower lr, slower head). Our recipe still lacks the regularisers of the standard ViT fine-tuning recipes (DeiT; Steiner et al., "How to train your ViT", the paper behind the *augreg* checkpoint; BEiT and MAE fine-tuning): training used only random crops, flips and label smoothing.
+
+Each improvement run is `tune_head_lr_half` (run 15, 74.14%) with one change. Gains under about 0.5 points are inside the noise of one run, so the winners are combined in one run (29) and only kept if it clearly beats run 15.
+
+| Run | Change | What it does | Typical gain in the literature |
+|---|---|---|---|
+| 22 | test at 256 / 288 px (no training) | random crops make objects look larger in training than the 224 px centre crop at test; a slightly larger test size fixes the mismatch (FixRes, Touvron et al. 2019). Latency grows with the size. | +0.3 to 1 |
+| 23 | stochastic depth 0.1 | randomly skips a block's attention or FFN branch while training | +0.3 to 1 |
+| 24 | weight EMA 0.9998 | averages the weights over the last 1.5 epochs or so (a cheap cousin of model soups, Wortsman et al. 2022) | +0.2 to 0.5 |
+| 25 | Mixup / CutMix, 15 epochs | trains on blended pairs of images and labels; needs more epochs, so A100 40 GB only (budget 2.4 h) | +0.5 to 2 |
+| 26 | TrivialAugment + random erasing | more variety from the same 45 images | +0.5 to 1.5 (if the loader keeps up) |
+| 27 | layer-wise lr decay 0.75 (full fine-tuning) | early layers change less than late ones, so general features are kept (Kumar et al. 2022; BEiT / MAE recipe) | +0.5 to 1 |
+
+Run 22 needs a finished run's folder with `final.pt`: the best one (run 15) is on Ryan's Drive, but any finished 5% run shows whether a larger test size helps. If it does, submit with `python -m common.submit <run> --team XX --size <best size>` and report the latency at that size (it is printed per size).
+
+Code: the new settings (`drop_path_rate`, `ema_decay`, `mixup_alpha`, `cutmix_alpha`, `auto_augment`, `re_prob`, `layer_decay`, and `--sizes` / `--size` in `common/evaluate.py` and `common/submit.py`) are opt-in. Their defaults reproduce the old behaviour exactly (checked on CPU on 21 Oct: the same parameter groups and the same outputs at 224 px), so earlier results and configs are unaffected. They live in `common/`, so the team agrees before the branch is merged.
+
+Not planned: other adapter types (DoRA, SSF, VPT, FacT; expected under 0.5 points), a larger training size (about 3.5 times the cost per step at 384 px), pseudo-labels on val or test (forbidden), another checkpoint (ruled out).
 
 ## Planned ablations (one change per run)
 

@@ -1,0 +1,21 @@
+# Improvement run: tune_head_lr_half (best 5% run, 74.14%) with Mixup 0.8 / CutMix 1.0 (the DeiT / BEiT fine-tuning
+# values), trained for 15 epochs instead of 10.
+# Why: mixing pairs of images and their labels is the strongest regulariser for few images per class. It makes the task
+# harder, so it needs more epochs to pay off; hence 15. Label smoothing 0.1 is applied inside the mixer.
+# Compare with imp_ep15_control (same 15 epochs, no Mixup) to separate the two changes.
+# GPU: run on an A100 40 GB (budget 2.4 h; 15 epochs take about 1.9 h there). On an 80 GB card the budget is 1.2 h and
+# the run would be stopped early at about 10 epochs, which is not the experiment.
+name: imp_mixup
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 15
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+mixup_alpha: 0.8
+cutmix_alpha: 1.0
+notes: "tune_head_lr_half + Mixup 0.8 / CutMix 1.0, 15 epochs (A100 40 GB)"

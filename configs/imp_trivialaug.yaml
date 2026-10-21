@@ -1,0 +1,20 @@
+# Improvement run: tune_head_lr_half (best 5% run, 74.14%) with stronger data augmentation: TrivialAugment (one
+# random photometric or geometric operation per image, no settings to tune) + random erasing with probability 0.25.
+# Why: more variety from the same 45 images per class. The two are applied together as one augmentation package, as in
+# the DeiT recipe. They run on the 224 px crop in the data loader.
+# Watch the img/s in the first log lines: the loader delivered about 880 img/s on Colab, so heavier augmentation may make
+# the run loader-bound (slower, possibly stopped by the budget guard). If img/s drops well below 1,000, stop and say so.
+name: imp_trivialaug
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+auto_augment: trivial
+re_prob: 0.25
+notes: "tune_head_lr_half + TrivialAugment + random erasing 0.25"

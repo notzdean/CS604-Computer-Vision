@@ -9,12 +9,17 @@
 - Budget: `budget_hours: auto` -> 96 GB-hours / GPU size. If `epochs` is null the number of steps is chosen
   after measuring the real speed for a few steps, so the run fits the budget.
 - Appends one row to results/results.csv when finished.
+- Opt-in regularisers (all off by default, so older configs train exactly as before): `drop_path_rate` (stochastic
+  depth), `layer_decay` (layer-wise lr decay), `ema_decay` (weight EMA: evaluations and final.pt use the EMA weights),
+  `auto_augment` / `re_prob` (TrivialAugment or RandAugment / random erasing), `mixup_alpha` / `cutmix_alpha`.
 """
 import json
 import math
 import os
+import re
 import sys
 import time
+from contextlib import contextmanager
 
 import torch
 import torch.nn.functional as F
@@ -32,6 +37,8 @@ DEFAULTS = dict(
     epochs=None, budget_hours="auto", max_train_steps=None,   # epochs=null -> as many as fit in the budget
     batch_size=128, lr=1e-4, head_lr_mult=10.0, weight_decay=0.05, warmup_steps=200, min_lr_frac=0.01,
     grad_clip=1.0, label_smoothing=0.0, scale_min=0.35,
+    drop_path_rate=0.0, layer_decay=None, ema_decay=None,                  # opt-in regularisers (see docstring)
+    auto_augment=None, re_prob=0.0, mixup_alpha=0.0, cutmix_alpha=0.0, mixup_prob=1.0,
     head_init=True, head_init_per_class=10, head_init_scale="auto", eval_at_start=True,
     precision="auto", num_workers=None, eval_batch_size=256, seed=0, holdout_per_class=data.HOLDOUT_PER_CLASS,
     eval_every_epochs=1, ckpt_every_steps=2000, log_every=50,
@@ -65,12 +72,13 @@ def pick_amp(precision, device):
 
 
 @torch.no_grad()
-def evaluate(model, rows, cfg, device, amp, flip=False):
-    """flip=True: mirror averaging, the class probabilities of each image and of its mirror image are averaged."""
+def evaluate(model, rows, cfg, device, amp, flip=False, size=224):
+    """flip=True: mirror averaging, the class probabilities of each image and of its mirror image are averaged.
+    size != 224 needs a model built with dynamic_img_size (see common/evaluate.py)."""
     model.eval()
     n = c1 = c5 = 0
     loss_sum = 0.0
-    for x, y in data.make_loader(rows, data.eval_tf(), cfg["eval_batch_size"], workers=cfg["num_workers"]):
+    for x, y in data.make_loader(rows, data.eval_tf(size), cfg["eval_batch_size"], workers=cfg["num_workers"]):
         x, y = x.to(device, non_blocking=True), y.to(device)
         with torch.autocast(device.type, dtype=amp, enabled=amp is not None):
             logits = model(x)
@@ -89,19 +97,50 @@ def evaluate(model, rows, cfg, device, amp, flip=False):
     return dict(top1=100 * c1 / n, top5=100 * c5 / n, loss=loss_sum / n, n=n)
 
 
-def make_groups(model, lr, head_mult, wd):
-    """4 param groups: (head / backbone) x (decay for matrices / no decay for biases & norms)."""
+def layer_id(name, n_layers):
+    """Depth of a parameter for layer-wise lr decay: 0 = embeddings, i + 1 = block i, n_layers + 1 = final norm / head."""
+    m = re.search(r"blocks\.(\d+)\.", name)
+    if m:
+        return int(m.group(1)) + 1
+    if any(k in name for k in ("patch_embed", "cls_token", "pos_embed", "reg_token")):
+        return 0
+    return n_layers + 1
+
+
+def make_groups(model, lr, head_mult, wd, layer_decay=None):
+    """4 param groups: (head / backbone) x (decay for matrices / no decay for biases & norms).
+    layer_decay (e.g. 0.75): each group is also split by depth and gets lr * layer_decay ** (layers above it),
+    so early blocks change less than late ones (BEiT / MAE fine-tuning). None = one lr for every depth."""
+    named = [(n, p) for n, p in model.named_parameters() if p.requires_grad]
+    n_layers = 1 + max((int(m.group(1)) for n, _ in named if (m := re.search(r"blocks\.(\d+)\.", n))), default=-1)
     buckets = {}
-    for name, p in model.named_parameters():
-        if not p.requires_grad:
-            continue
-        key = ("head" in name.split("."), p.ndim > 1)
+    for name, p in named:
+        lid = layer_id(name, n_layers) if layer_decay else 0
+        key = ("head" in name.split("."), p.ndim > 1, lid)
         buckets.setdefault(key, []).append(p)
     groups = []
-    for (is_head, decay), ps in buckets.items():
-        base = lr * (head_mult if is_head else 1.0)
+    for (is_head, decay, lid), ps in buckets.items():
+        base = lr * (head_mult if is_head else 1.0) * (layer_decay ** (n_layers + 1 - lid) if layer_decay else 1.0)
         groups.append(dict(params=ps, weight_decay=wd if decay else 0.0, base_lr=base, lr=base))
     return groups
+
+
+@contextmanager
+def swapped_in(params, values):
+    """Temporarily copy `values` (the EMA weights) into `params`; no-op when values is None."""
+    if values is None:
+        yield
+        return
+    backup = [p.detach().clone() for p in params]
+    with torch.no_grad():
+        for p, v in zip(params, values):
+            p.copy_(v)
+    try:
+        yield
+    finally:
+        with torch.no_grad():
+            for p, b in zip(params, backup):
+                p.copy_(b)
 
 
 def trainable_state(model):
@@ -169,7 +208,7 @@ def main(argv):
     print(f"trainable adapter params: {n_train:,} = {100 * n_train / n_base:.2f}% of backbone ({n_base:,}); "
           f"classifier head (not counted): {n_head:,} trainable")
 
-    opt = torch.optim.AdamW(make_groups(model, cfg["lr"], cfg["head_lr_mult"], cfg["weight_decay"]),
+    opt = torch.optim.AdamW(make_groups(model, cfg["lr"], cfg["head_lr_mult"], cfg["weight_decay"], cfg["layer_decay"]),
                             betas=(0.9, 0.999), fused=device.type == "cuda")
     scaler = torch.amp.GradScaler("cuda", enabled=amp == torch.float16)
 
@@ -184,7 +223,11 @@ def main(argv):
         opt.load_state_dict(ck["opt"]); scaler.load_state_dict(ck["scaler"])
         step, total_steps, zero_shot = ck["step"], ck["total_steps"], ck.get("zero_shot")
         print(f"resumed from step {step} (total {total_steps})")
-    elif cfg["head_init"] and cfg["eval_at_start"] and hold_rows:
+    trainable = [p for p in model.parameters() if p.requires_grad]
+    ema = None
+    if cfg["ema_decay"]:                     # EMA of the trainable weights only (the frozen backbone never changes)
+        ema = [t.to(device) for t in ck["ema"]] if ck and ck.get("ema") else [p.detach().clone() for p in trainable]
+    if not ck and cfg["head_init"] and cfg["eval_at_start"] and hold_rows:
         zero_shot = evaluate(model, hold_rows, cfg, device, amp)
         print(f"zero-shot (head init only) hold-out top-1: {zero_shot['top1']:.2f}%")
     budget_h = 96 / gpu_gb if cfg["budget_hours"] == "auto" and gpu_gb else (
@@ -201,14 +244,19 @@ def main(argv):
 
     def save_ckpt(path):
         atomic_save(dict(step=step, total_steps=total_steps, elapsed_s=elapsed(), trainable=trainable_state(model),
-                         opt=opt.state_dict(), scaler=scaler.state_dict(), zero_shot=zero_shot), path)
+                         opt=opt.state_dict(), scaler=scaler.state_dict(), zero_shot=zero_shot,
+                         ema=[t.cpu() for t in ema] if ema else None), path)
 
     log = open(f"{out}/log.jsonl", "a")
     def emit(rec):
         log.write(json.dumps(rec) + "\n"); log.flush()
 
-    ds = data.ImageDS(train_rows, data.train_tf(cfg["scale_min"]))
-    trainable = [p for p in model.parameters() if p.requires_grad]
+    ds = data.ImageDS(train_rows, data.train_tf(cfg["scale_min"], cfg["auto_augment"], cfg["re_prob"]))
+    mixer = None
+    if cfg["mixup_alpha"] or cfg["cutmix_alpha"]:   # soft targets; label smoothing is applied inside the mixer
+        from timm.data import Mixup
+        mixer = Mixup(mixup_alpha=cfg["mixup_alpha"], cutmix_alpha=cfg["cutmix_alpha"], prob=cfg["mixup_prob"],
+                      label_smoothing=cfg["label_smoothing"], num_classes=cfg["num_classes"])
     if device.type == "cuda": torch.cuda.reset_peak_memory_stats()
     win_t, win_n, run_loss, probe_t = time.time(), 0, torch.zeros((), device=device), None
     done = total_steps is not None and step >= total_steps
@@ -222,15 +270,24 @@ def main(argv):
             for g in opt.param_groups:
                 g["lr"] = g["base_lr"] * lr_scale(step)
             x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
+            if mixer:
+                x, y = mixer(x, y)
             with torch.autocast(device.type, dtype=amp, enabled=amp is not None):
                 logits = model(x)
-            loss = F.cross_entropy(logits.float(), y, label_smoothing=cfg["label_smoothing"])
+            if mixer:
+                loss = torch.sum(-y * F.log_softmax(logits.float(), dim=1), dim=1).mean()
+            else:
+                loss = F.cross_entropy(logits.float(), y, label_smoothing=cfg["label_smoothing"])
             scaler.scale(loss).backward()
             if cfg["grad_clip"]:
                 scaler.unscale_(opt)
                 torch.nn.utils.clip_grad_norm_(trainable, cfg["grad_clip"])
             scaler.step(opt); scaler.update(); opt.zero_grad(set_to_none=True)
             step += 1; win_n += bs; run_loss += loss.detach()
+            if ema is not None:
+                d = min(cfg["ema_decay"], (1 + step) / (10 + step))     # short warm-up so early weights fade fast
+                with torch.no_grad():
+                    torch._foreach_lerp_(ema, [p.detach() for p in trainable], 1 - d)
 
             if step == PROBE_START:
                 if device.type == "cuda": torch.cuda.synchronize()
@@ -257,12 +314,17 @@ def main(argv):
                 break
         if not done and (epoch + 1) % cfg["eval_every_epochs"] == 0:
             if hold_rows:
-                ev = evaluate(model, hold_rows, cfg, device, amp)
+                with swapped_in(trainable, ema):
+                    ev = evaluate(model, hold_rows, cfg, device, amp)
                 emit(dict(kind="eval", step=step, epoch=step / spe, **ev))
                 print(f"== epoch {epoch + 1}: hold-out top-1 {ev['top1']:.2f}%  top-5 {ev['top5']:.2f}%  loss {ev['loss']:.3f}")
             save_ckpt(latest)
 
     train_s = elapsed()
+    if ema is not None:                      # the EMA weights are the final model (scored, timed and saved)
+        with torch.no_grad():
+            for p, e in zip(trainable, ema):
+                p.copy_(e)
     ev = evaluate(model, hold_rows, cfg, device, amp) if hold_rows else None
     if ev:
         emit(dict(kind="eval", step=step, epoch=step / spe, **ev))

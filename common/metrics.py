@@ -38,9 +38,9 @@ def gpu_info():
 
 
 @torch.inference_mode()
-def latency_ms(model, device, amp=None, n=50, warm=10):
+def latency_ms(model, device, amp=None, n=50, warm=10, size=224):
     model.eval()
-    x = torch.randn(1, 3, 224, 224, device=device)
+    x = torch.randn(1, 3, size, size, device=device)
     ts = []
     for i in range(n + warm):
         if device.type == "cuda": torch.cuda.synchronize()
