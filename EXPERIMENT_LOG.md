@@ -33,6 +33,7 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | full_ft_ls | Full fine-tuning + label smoothing 0.1 | `full_ft_ls` | 73.98 | 100 | 7.69M (trained) | 1.13 | not recorded here |
 | abl_linear_probe | Head only, backbone frozen (label smoothing 0.1, lr 1e-4, 10 epochs) | `abl_linear_probe` | 62.62 | 0 | 7.69M (trained) | 1.19 (A100 40 GB) | not recorded here |
 | imp_droppath | `tune_head_lr_half` + stochastic depth 0.1 | `imp_droppath` | 74.09 | 4.998 | 7.69M (trained) | about 1.32 (A100 40 GB; 1.36 recorded, see section) | not recorded here |
+| imp_ema | `tune_head_lr_half` + weight EMA 0.9998 | `imp_ema` | 74.19 | 4.998 | 7.69M (trained) | 1.27 (A100 40 GB) | not recorded here |
 
 Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
@@ -364,6 +365,34 @@ Hold-out top-1 by epoch:
   - For the combined run (29): it does not meet the "about 0.5 points or more" rule, so leave it out of the 10-epoch recipe. If the combined run uses Mixup and 15 epochs, adding it costs nothing and may help; decide after run 25.
 - **Log:** `results/imp_droppath/log.jsonl` (interleaved at the end, see above), `summary.json`.
 
+### imp_ema (21 Oct 2026, lilian)
+
+- **Setup:** `configs/imp_ema.yaml`: `tune_head_lr_half` (run 15, 74.14%) with one change, an exponential moving average of the trainable weights (decay 0.9998, a time constant of about 5,000 steps = 1.5 epochs). The per-epoch hold-out scores, the final score and `final.pt` all use the EMA weights. Queue run 24.
+- **Result:** hold-out top-1 74.19%, top-5 90.28%, hold-out loss 1.325. Zero-shot 35.70%.
+- **Efficiency:** 4,287,936 adapter params = 4.998%. Latency 11.9 ms (EMA adds nothing at inference). Peak VRAM 7.3 GiB. Train 1.271 h on an A100 40 GB (1.06 h in 48 GB-equivalent), 10 epochs (33,590 steps), about 1,020 img/s: the averaging step costs no measurable speed. One clean process this time.
+- **Hold-out by epoch (EMA weights):**
+
+  | Epoch | `imp_ema` top-1 | Hold-out loss | `tune_head_lr_half` top-1 | Gap |
+  |---|---|---|---|---|
+  | 1 | 66.42 | 1.704 | 65.81 | +0.61 |
+  | 2 | 70.86 | 1.467 | 69.64 | +1.22 |
+  | 3 | 72.77 | 1.375 | 71.90 | +0.87 |
+  | 4 | 73.65 | 1.334 | 72.81 | +0.84 |
+  | 5 | 73.90 | 1.317 | 73.64 | +0.26 |
+  | 6 | 73.84 | 1.313 | 73.91 | -0.07 |
+  | 7 | 73.95 | 1.315 | 73.95 | 0.00 |
+  | 8 | 74.06 | 1.318 | 74.00 | +0.06 |
+  | 9 | 74.12 | 1.325 | 74.11 | +0.01 |
+  | 10 (final) | 74.19 | 1.325 | 74.14 | +0.05 |
+
+- **Training loss (mean per epoch):** 3.19, 2.53, 2.27, 2.10, 1.99, 1.91, 1.86, 1.82, 1.80, 1.79, identical to run 15 to two decimals. The EMA does not touch training, and the same seed on the same GPU type gave the same trajectory, so this is an unusually clean comparison: the +0.05 at the end is the effect of the averaging alone, not run-to-run noise.
+- **Interpretation:**
+  - No gain at the end: 74.19 against 74.14, and the same hold-out loss (1.325).
+  - A clear gain in the middle of training: up to +1.2 points at epoch 2, +0.8 at epochs 3 and 4, while the learning rate is high and the weights are noisy. From epoch 6 the cosine schedule has lowered the learning rate enough that the live weights are as smooth as their average, and the two curves meet. With a cosine decay to 1% of the peak rate, the schedule already does what the EMA would do.
+  - So the EMA is worth having only for runs that stop early or use a flat learning rate; for our 10-epoch cosine runs it is free but useless. Leave it out of the combined run (29).
+- **Pattern after two runs:** stochastic depth and EMA both tie with run 15. Both act on the weights and the training noise; neither changes what the model sees. The 10-epoch recipe with label smoothing and the slow head looks saturated on that side, so the remaining chances are on the data side: Mixup / CutMix (run 25), stronger augmentation (run 26), the test size (run 22) and training on all 45 images per class for the final model (run 30).
+- **Log:** `results/imp_ema/log.jsonl`, `summary.json`.
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -395,7 +424,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 21 | `full_ft_ls_headlow` | | run 12 with the head at the backbone's rate (3e-5 instead of 3e-4), fair comparison | open (friend) | |
 | 22 | no training | | test-size check on a finished run: `python -m common.evaluate <run folder> --sizes 224 256 288` (minutes; see section 5) | open (lilian) | |
 | 23 | `imp_droppath` | | run 15 + stochastic depth 0.1 | lilian | done 21 Oct: 74.09%, tie with run 15 (lower hold-out loss) |
-| 24 | `imp_ema` | | run 15 + weight EMA 0.9998 (hold-out and final.pt use the averaged weights) | open (lilian) | |
+| 24 | `imp_ema` | | run 15 + weight EMA 0.9998 (hold-out and final.pt use the averaged weights) | lilian | done 21 Oct: 74.19%, tie with run 15 (ahead only mid-training) |
 | 25 | `imp_mixup` | | run 15 + Mixup 0.8 / CutMix 1.0, 15 epochs. **A100 40 GB only** (about 1.9 h of the 2.4 h budget) | open (lilian) | |
 | 26 | `imp_trivialaug` | | run 15 + TrivialAugment + random erasing 0.25; stop if img/s falls well below 1,000 | open (lilian) | |
 | 27 | `full_ft_llrd` | `ckpt_every_steps=1000000` | run 21 + layer-wise lr decay 0.75; run after run 21 | open (lilian) | |
@@ -471,7 +500,7 @@ Each improvement run is `tune_head_lr_half` (run 15, 74.14%) with one change. Ga
 |---|---|---|---|
 | 22 | test at 256 / 288 px (no training) | random crops make objects look larger in training than the 224 px centre crop at test; a slightly larger test size fixes the mismatch (FixRes, Touvron et al. 2019). Latency grows with the size. | +0.3 to 1 |
 | 23 | stochastic depth 0.1 | randomly skips a block's attention or FFN branch while training | +0.3 to 1. **Result: 74.09%, a tie** (hold-out loss lower: 1.251 against 1.325) |
-| 24 | weight EMA 0.9998 | averages the weights over the last 1.5 epochs or so (a cheap cousin of model soups, Wortsman et al. 2022) | +0.2 to 0.5 |
+| 24 | weight EMA 0.9998 | averages the weights over the last 1.5 epochs or so (a cheap cousin of model soups, Wortsman et al. 2022) | +0.2 to 0.5. **Result: 74.19%, a tie** (up to +1.2 mid-training, none at the end) |
 | 25 | Mixup / CutMix, 15 epochs | trains on blended pairs of images and labels; needs more epochs, so A100 40 GB only (budget 2.4 h) | +0.5 to 2 |
 | 26 | TrivialAugment + random erasing | more variety from the same 45 images | +0.5 to 1.5 (if the loader keeps up) |
 | 27 | layer-wise lr decay 0.75 (full fine-tuning) | early layers change less than late ones, so general features are kept (Kumar et al. 2022; BEiT / MAE recipe) | +0.5 to 1 |
