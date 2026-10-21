@@ -9,7 +9,7 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 
 ## Summary
 
-| Run | Method | Config | Hold-out top-1 | Trainable % (adapter) | Head params | GPU-h (A100 80GB) | Leaderboard val top-1 (not published) |
+| Run | Method | Config | Hold-out top-1 | Trainable % (adapter) | Head params | GPU-h (A100 80 GB unless noted) | Leaderboard val top-1 (not published) |
 |---|---|---|---|---|---|---|---|
 | zero-shot (head init only, 10 images per class) | none | `lora_baseline` before training | 35.70 | 0 | 7.69M (init only) | - | - |
 | zero-shot (head init only, 43 images per class) | none | `tune_head_init` before training | 43.30 | 0 | 7.69M (init only) | - | - |
@@ -18,6 +18,20 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | full_ft_baseline | Full fine-tuning (required baseline) | `full_ft_baseline` | 72.53 | 100 | 7.69M (trained) | 1.13 | not recorded here |
 | abl_combined | LoRA r=12 qkv + AdaptFormer b=208 (FFN), 10 epochs | `abl_combined` | 71.05 | 4.998 | 7.69M (trained) | 1.18 | not recorded here |
 | abl_adaptformer_only | AdaptFormer b=232 (FFN) only, 10 epochs | `abl_adaptformer_only` | 71.09 | 4.998 | 7.69M (trained) | 1.04 | not recorded here |
+| abl_lora_only | LoRA r=116 (qkv) only, 10 epochs | `abl_lora_only` | 70.76 | 4.984 | 7.69M (trained) | 1.17 (A100 40 GB) | not recorded here |
+| abl_adaptformer_last6 | AdaptFormer b=464 (FFN), last 6 blocks only, 10 epochs | `abl_adaptformer_last6` | 70.17 | 4.993 | 7.69M (trained) | 1.01 | not recorded here |
+| tune_label_smoothing | `abl_combined` + label smoothing 0.1 | `tune_label_smoothing` | 72.17 | 4.998 | 7.69M (trained) | 1.28 (A100 40 GB) | not recorded here |
+| tune_lr_low | `abl_combined` + lr 2e-4 | `tune_lr_low` | 72.37 | 4.998 | 7.69M (trained) | 1.28 (A100 40 GB) | not recorded here |
+| tune_lr_high | `abl_combined` + lr 5e-4 | `tune_lr_high` | 69.28 | 4.998 | 7.69M (trained) | 1.29 (A100 40 GB) | not recorded here |
+| tune_head_init | `abl_combined` + head init from 43 images per class | `tune_head_init` | 69.98 | 4.998 | 7.69M (trained) | 1.26 | not recorded here |
+| tune_ls_lr2e4 | `abl_combined` + label smoothing 0.1 + lr 2e-4 | `tune_ls_lr2e4` | 72.35 | 4.998 | 7.69M (trained) | 1.19 | not recorded here |
+| tune_ls_lr1e4 | `abl_combined` + label smoothing 0.1 + lr 1e-4 | `tune_ls_lr1e4` | 73.02 | 4.998 | 7.69M (trained) | 1.19 | not recorded here |
+| tune_ls_lr5e5 | `abl_combined` + label smoothing 0.1 + lr 5e-5 | `tune_ls_lr5e5` | 73.52 | 4.998 | 7.69M (trained) | 1.18 | not recorded here |
+| tune_head_lr_half | `tune_ls_lr1e4` + head lr x0.5 (5e-5) | `tune_head_lr_half` | **74.14** | 4.998 | 7.69M (trained) | 1.27 (A100 40 GB) | not recorded here |
+| tune_head_lr_quarter | `tune_ls_lr1e4` + head lr x0.25 (2.5e-5) | `tune_head_lr_quarter` | 74.02 | 4.998 | 7.69M (trained) | 1.18 | not recorded here |
+| tune_head_lr_double | `tune_ls_lr1e4` + head lr x2 (2e-4) | `tune_head_lr_double` | 71.75 | 4.998 | 7.69M (trained) | 1.28 (A100 40 GB) | not recorded here |
+| full_ft_ls | Full fine-tuning + label smoothing 0.1 | `full_ft_ls` | 73.98 | 100 | 7.69M (trained) | 1.13 | not recorded here |
+| abl_linear_probe | Head only, backbone frozen (label smoothing 0.1, lr 1e-4), stopped at 6.36 epochs | `abl_linear_probe` | 61.66 | 0 | 7.69M (trained) | 1.30 | not recorded here |
 
 Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
@@ -151,8 +165,157 @@ Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
   - It is the cheaper design: 9.2 ms against 11.4 ms latency, 1.04 h against 1.18 h of training (about 1,270 against 1,100 img/s), 6.5 against 7.3 GiB. These come from another Colab session, so treat them as indicative.
   - Same over-confidence pattern as `abl_combined`: the hold-out loss rises from 1.46 (epoch 2) to 1.53 (epoch 4) and ends at 1.43.
   - Still 1.44 points below full fine-tuning (72.53%).
-  - Still open: does the FFN placement matter, or only the number of adapter parameters? `abl_lora_only` (same budget, attention only) answers that.
+  - Still open: does the FFN placement matter, or only the number of adapter parameters? `abl_lora_only` (same budget, attention only) answers that. Answered below: LoRA alone also ties (70.76%).
 - **Log:** `results/abl_adaptformer_only/log.jsonl`, `summary.json`.
+
+### Notes that apply to the runs below
+
+- **GPU:** Ryan's runs (`abl_lora_only`, `tune_label_smoothing`, `tune_lr_low`, `tune_lr_high`, `tune_head_lr_half`, `tune_head_lr_double`) ran on an A100 **40 GB**, where the budget is 2.4 h. They took about 1.27 h, so about 1.06 h in 48 GB-equivalent: well inside the budget. The rest ran on an A100 80 GB (budget 1.2 h).
+- **Hold-out loss with label smoothing:** a model trained with label smoothing 0.1 is deliberately less confident, so its plain cross-entropy on the hold-out is higher. Compare hold-out loss only between runs that both use label smoothing, or both do not.
+- **Latency** of the same LoRA + AdaptFormer design ranges from 11.3 to 12.4 ms across sessions, so gaps of about 1 ms are session noise.
+- **Sampling error** is about 0.3 points per run and about 0.45 points for the difference between two runs (see above).
+
+### abl_lora_only (13 Oct 2026, Ryan)
+
+- **Setup:** `configs/abl_lora_only.yaml`: LoRA r=116 on every `qkv` and no AdaptFormer, 4.984% of backbone. Same lr (3e-4), 10 epochs and other settings as `abl_combined`. Run A of the equal-budget ablation.
+- **Result:** hold-out top-1 70.76%, top-5 87.47%, hold-out loss 1.420.
+- **Efficiency:** 4,276,224 adapter params = 4.984%. Latency 10.4 ms. Peak VRAM 6.8 GiB. Train 1.173 h on an A100 40 GB (0.98 h in 48 GB-equivalent), about 1,130 img/s.
+- **Interpretation:**
+  - All three equal-budget designs tie: LoRA only 70.76, AdaptFormer only 71.09, combined 71.05. The spread (0.33) is inside the sampling error. At 5% of the backbone it does not matter whether the parameters go to attention, to the FFN, or to both.
+  - Rank 116 trained without trouble: the first loss lines and the curve look like the other two designs.
+  - So the gain of the 5% design over LoRA r=8 (68.78) comes from the number of adapter parameters, not from where they sit.
+- **Log:** `results/abl_lora_only/log.jsonl`, `summary.json`.
+
+### abl_adaptformer_last6 (16 Oct 2026, Nicole)
+
+- **Setup:** `configs/abl_adaptformer_last6.yaml`: AdaptFormer only in the last 6 of the 12 blocks, bottleneck 464 (twice that of `abl_adaptformer_only`), 4.993% of backbone. Everything else as `abl_adaptformer_only`.
+- **Result:** hold-out top-1 70.17%, top-5 87.27%, hold-out loss 1.453.
+- **Efficiency:** 4,283,616 adapter params = 4.993%. Latency 8.2 ms. Peak VRAM 3.6 GiB (half of the all-blocks design: no gradients flow through the first 6 blocks). Train 1.011 h, about 1,300 img/s, the fastest adapter run.
+- **Interpretation:**
+  - 0.92 points below AdaptFormer in all 12 blocks (71.09), about 2 times the sampling error of the difference: probably a real loss, but small. It is behind at every epoch from epoch 1.
+  - Spending the 5% only in the later layers, where the fine-grained decision is made, does not help. Adapting the early layers too is worth more than a wider adapter late.
+  - It is the cheapest design (8.2 ms, 3.6 GiB, 1.01 h). Worth one line in the report as the efficiency trade-off.
+- **Log:** `results/abl_adaptformer_last6/log.jsonl`, `summary.json`.
+
+### One-change tuning on `abl_combined`: label smoothing, learning rate, head init (12 to 13 Oct 2026, Ryan and lilian)
+
+Each run is `abl_combined` (71.05%) with exactly one setting changed. All are LoRA r=12 + AdaptFormer b=208 (4,287,936 params, 4.998%), 10 epochs, 33,590 steps, peak VRAM 7.3 GiB.
+
+| Config | Change | Who | Top-1 | Top-5 | vs `abl_combined` | Hold-out loss (final) | Train h (GPU) | Latency |
+|---|---|---|---|---|---|---|---|---|
+| `tune_label_smoothing` | label smoothing 0.1 | Ryan | 72.17 | 88.03 | +1.12 | 1.604 (smoothed, not comparable) | 1.276 (40 GB) | 11.9 ms |
+| `tune_lr_low` | lr 2e-4 | Ryan | 72.37 | 88.52 | +1.32 | 1.258 | 1.282 (40 GB) | 12.3 ms |
+| `tune_lr_high` | lr 5e-4 | Ryan | 69.28 | 85.92 | -1.77 | 1.818 | 1.285 (40 GB) | 12.1 ms |
+| `tune_head_init` | head init from 43 images per class | lilian | 69.98 | 87.00 | -1.07 | 1.565 | 1.260 (80 GB) | 11.4 ms |
+
+Hold-out top-1 by epoch:
+
+| Epoch | `abl_combined` | `tune_label_smoothing` | `tune_lr_low` | `tune_lr_high` | `tune_head_init` |
+|---|---|---|---|---|---|
+| 1 | 64.56 | 64.71 | 66.32 | 62.20 | 65.72 |
+| 2 | 66.97 | 67.60 | 68.58 | 65.08 | 67.22 |
+| 3 | 67.53 | 68.75 | 69.49 | 65.83 | 67.08 |
+| 4 | 68.45 | 69.21 | 70.30 | 66.59 | 67.54 |
+| 5 | 68.77 | 70.06 | 70.68 | 66.82 | 67.98 |
+| 6 | 69.59 | 70.72 | 71.29 | 67.66 | 68.53 |
+| 7 | 70.48 | 71.33 | 71.58 | 68.19 | 69.20 |
+| 8 | 70.77 | 71.83 | 72.04 | 68.75 | 69.76 |
+| 9 | 71.07 | 72.14 | 72.34 | 69.23 | 69.95 |
+| 10 | 71.05 | 72.17 | 72.37 | 69.28 | 69.98 |
+
+- **Interpretation:**
+  - **Learning rate:** 3e-4 was too high. 2e-4 gains 1.32 points and its hold-out loss keeps falling (1.43 to 1.26, flat only at epochs 2 to 3) instead of rising in the middle; 5e-4 loses 1.77 points and its hold-out loss climbs from 1.57 to 1.88, the clearest over-confidence of any run. Lower is better in this range.
+  - **Label smoothing** gains 1.12 points. Its training loss stays high (1.52 at the end, against 0.07 without it), which is the point: the model is kept from becoming over-confident on 43 images per class.
+  - Both gains are about 2.5 to 3 times the sampling error of the difference, so they are real. They led to runs 10 to 13 (both changes together).
+  - **Head init from 43 images per class** gives the better start (zero-shot 43.30% against 35.70%, and ahead at epochs 1 and 2) but ends 1.07 points lower. From epoch 3 it falls behind and its hold-out loss rises to 1.64 at epoch 5. A likely reason: with all 43 training images used to set the head, the head already fits the training set, the training loss falls faster (1.58 against 1.87 in epoch 1), and the model overfits sooner at lr 3e-4. Not tested directly. Runs 18 and 20 try it again with the tuned recipe (label smoothing, lower learning rate).
+- **Logs:** `results/<config>/log.jsonl`, `summary.json`.
+
+### Label smoothing + lower learning rate: `tune_ls_lr2e4`, `tune_ls_lr1e4`, `tune_ls_lr5e5` (16 to 18 Oct 2026, Nicole)
+
+`abl_combined` with label smoothing 0.1 and a lower learning rate. `head_lr_mult` is 1, so the head's learning rate drops with the adapters'. 10 epochs, A100 80 GB, about 1.18 to 1.19 h, 1,100 img/s, latency 11.3 to 11.8 ms, peak VRAM 7.3 GiB.
+
+| Epoch | `tune_ls_lr2e4` | `tune_ls_lr1e4` | `tune_ls_lr5e5` | `tune_label_smoothing` (lr 3e-4) |
+|---|---|---|---|---|
+| 1 | 66.13 | 66.94 | 64.94 | 64.71 |
+| 2 | 68.61 | 70.19 | 69.02 | 67.60 |
+| 3 | 69.56 | 71.39 | 71.43 | 68.75 |
+| 4 | 69.97 | 72.09 | 72.11 | 69.21 |
+| 5 | 70.72 | 72.23 | 72.97 | 70.06 |
+| 6 | 71.25 | 72.39 | 73.27 | 70.72 |
+| 7 | 71.77 | 72.69 | 73.36 | 71.33 |
+| 8 | 71.89 | 72.95 | 73.47 | 71.83 |
+| 9 | 72.22 | 73.05 | 73.57 | 72.14 |
+| 10 (final) | 72.35 | 73.02 | 73.52 | 72.17 |
+| Top-5 (final) | 88.36 | 89.33 | 89.78 | 88.03 |
+| Hold-out loss (final) | 1.554 | 1.420 | 1.363 | 1.604 |
+
+- **Interpretation:**
+  - With label smoothing on, lowering the learning rate keeps helping: 72.17 (3e-4), 72.35 (2e-4), 73.02 (1e-4), 73.52 (5e-5).
+  - At 2e-4 the two changes do not add up: 72.35 with both, against 72.17 and 72.37 with each alone. They seem to fix the same problem (over-confidence).
+  - 5e-5 is 0.50 above 1e-4, about the sampling error of the difference: level, or a small gain at most. Run 14 (3e-5) was skipped for that reason.
+  - The lower the rate, the flatter the end of the curve: at 5e-5 the run gains only 0.25 points after epoch 6, so 10 epochs are enough.
+  - Because the head's rate fell with the adapters' rate here, these runs do not say which of the two needed to be slower. The head-rate runs below separate them.
+- **Logs:** `results/<config>/log.jsonl`, `summary.json`.
+
+### Head learning rate: `tune_head_lr_half`, `tune_head_lr_quarter`, `tune_head_lr_double` (18 Oct 2026, Ryan and Nicole)
+
+`tune_ls_lr1e4` (adapters at 1e-4, label smoothing 0.1, 73.02%) with only the head's learning rate changed through `head_lr_mult`.
+
+| Config | Head lr | Who | Top-1 | Top-5 | vs `tune_ls_lr1e4` | Hold-out loss | Train h (GPU) | Latency |
+|---|---|---|---|---|---|---|---|---|
+| `tune_head_lr_double` | 2e-4 (x2) | Ryan | 71.75 | 87.98 | -1.27 | 1.570 | 1.276 (40 GB) | 12.4 ms |
+| `tune_ls_lr1e4` | 1e-4 (x1) | Nicole | 73.02 | 89.33 | 0 | 1.420 | 1.192 (80 GB) | 11.5 ms |
+| `tune_head_lr_half` | 5e-5 (x0.5) | Ryan | **74.14** | **90.25** | +1.12 | **1.325** | 1.273 (40 GB) | 12.3 ms |
+| `tune_head_lr_quarter` | 2.5e-5 (x0.25) | Nicole | 74.02 | 90.17 | +1.00 | 1.335 | 1.181 (80 GB) | 11.7 ms |
+
+Hold-out top-1 by epoch:
+
+| Epoch | x2 | x1 | x0.5 | x0.25 |
+|---|---|---|---|---|
+| 1 | 65.96 | 66.94 | 65.81 | 62.84 |
+| 2 | 68.51 | 70.19 | 69.64 | 67.58 |
+| 3 | 69.26 | 71.39 | 71.90 | 70.67 |
+| 4 | 69.50 | 72.09 | 72.81 | 71.89 |
+| 5 | 70.56 | 72.23 | 73.64 | 72.91 |
+| 6 | 70.74 | 72.39 | 73.91 | 73.36 |
+| 7 | 71.22 | 72.69 | 73.95 | 73.52 |
+| 8 | 71.46 | 72.95 | 74.00 | 73.89 |
+| 9 | 71.62 | 73.05 | 74.11 | 73.98 |
+| 10 (final) | 71.75 | 73.02 | 74.14 | 74.02 |
+
+- **Interpretation:**
+  - The head's learning rate is the most sensitive setting found so far: from x2 to x0.5 is 2.4 points. A slower head is better down to x0.5; x0.25 is level with x0.5 (0.12 apart, inside the noise), so the optimum is around head lr 2.5e-5 to 5e-5.
+  - `tune_head_lr_half` (74.14%) is the best 5% run and has the lowest hold-out loss of the label-smoothing runs (1.325). It is ahead of full fine-tuning without label smoothing (72.53) and level with it with label smoothing (73.98).
+  - This explains the learning-rate sweep above: `tune_ls_lr5e5` has the head at 5e-5 too, but the adapters also at 5e-5, and reaches 73.52. With the adapters at 1e-4 and the head at 5e-5 it is 74.14. So the head wants a slow rate and the adapters a faster one, and the two should be set apart.
+  - A slower head starts worse (x0.25 is 4 points behind x1 after epoch 1) and catches up by epoch 3 to 4. The head starts from class means (nearest-class-mean init), so a slow head keeps that well-placed start for longer while the adapters adapt the features under it.
+  - For the report: this is the "classifier head" part of the design, with an ablation of four values.
+- **Logs:** `results/<config>/log.jsonl`, `summary.json`.
+
+### full_ft_ls (16 Oct 2026, Nicole)
+
+- **Setup:** `configs/full_ft_ls.yaml`: `full_ft_baseline` with one change, label smoothing 0.1. Backbone lr 3e-5, head lr 3e-4 (`head_lr_mult` 10), weight decay 0.05, auto length.
+- **Result:** hold-out top-1 73.98%, top-5 89.39%, hold-out loss 1.580 (smoothed).
+- **Efficiency:** 85,798,656 trainable params (100%). Latency 7.1 ms. Peak VRAM 9.6 GiB. Train 1.133 h on an A100 80 GB (1.89 h in 48 GB-equivalent), 9.37 epochs (31,461 steps), about 1,080 img/s.
+- **Hold-out top-1 by epoch:** 63.73, 66.40, 68.02, 69.51, 71.20, 72.28, 73.14, 73.89, 73.98, 73.98 (final, epoch 9.37). `full_ft_baseline` at the same epochs: 63.16, 65.58, 66.92, 67.81, 69.80, 70.43, 71.39, 72.16, 72.50, 72.53.
+- **Interpretation:**
+  - Label smoothing helps full fine-tuning by 1.45 points (72.53 to 73.98), about 3 times the sampling error of the difference. About the same gain as for the 5% design (+1.12).
+  - Fair comparison now: full fine-tuning with label smoothing (73.98) against the best 5% run (74.14) is a tie. The 5% design matches full fine-tuning while training 5% of the backbone, but it got two more tuned settings (lower lr, slower head).
+  - Its head runs at 3e-4, ten times the backbone. Given the head-rate finding above, run 21 (`full_ft_ls_headlow`, head at 3e-5) is the fair follow-up before the final comparison.
+- **Log:** `results/full_ft_ls/log.jsonl`, `summary.json`.
+
+### abl_linear_probe (after 18 Oct 2026, lilian)
+
+- **Setup:** `configs/abl_linear_probe.yaml`: only the classifier head is trained (backbone frozen, no adapters, 0% of backbone), with the `tune_ls_lr1e4` recipe (label smoothing 0.1, lr 1e-4, weight decay 0.01, head init from class means, 10 epochs planned).
+- **Result:** hold-out top-1 61.66%, top-5 82.34%, hold-out loss 2.065 (smoothed). Zero-shot 35.70%.
+- **Efficiency:** 0 adapter params; head 7.69M trained. Latency 7.3 ms. Peak VRAM 1.8 GiB. Train 1.298 h on an A100 80 GB.
+- **Stopped early:** the run reached only 6.36 of 10 epochs (21,350 steps). It ran at about 645 img/s, well below the adapter runs (1,100 img/s) although it does no backward pass through the backbone, so it was most likely loader-bound or on a slow Colab session (not investigated). It hit the 108% budget guard (1.296 h of 1.2 h).
+- **Hold-out top-1 by epoch:** 48.60, 54.45, 57.91, 59.47, 60.79, 61.55, 61.66 (final, epoch 6.36).
+- **Interpretation:**
+  - Training the head alone adds 26 points over the class-mean head (35.70 to 61.66).
+  - The adapters add another 11.4 points on top (`tune_ls_lr1e4`, same recipe: 73.02). So most of the gain over zero-shot comes from adapting the backbone, not only from training the head. Report both steps.
+  - Still rising at the end (+0.76 points in the last full epoch), so a full 10 epochs would land somewhat higher, perhaps around 63%. The adapter gap would still be about 10 points. If the exact number matters for the report, re-run with a faster session or a fixed `max_train_steps`.
+  - Its training loss stays high (2.62 in the last epoch) and the hold-out loss is still falling: the linear head on frozen features underfits rather than overfits.
+- **Log:** `results/abl_linear_probe/log.jsonl`, `summary.json`.
 
 ## Next runs (planned 11 Oct 2026)
 
@@ -164,23 +327,23 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 |---|---|---|---|---|---|
 | 1 | `full_ft_baseline` | `ckpt_every_steps=1000000` | required baseline: the whole model is trained | Nicole | done 11 Oct: 72.53% |
 | 2 | `abl_combined` | | our design for 10 epochs: the comparison point for runs 3 to 8 | Nicole | done 11 Oct: 71.05% |
-| 3 | `tune_label_smoothing` | | run 2 + label smoothing 0.1 | open | |
-| 4 | `tune_lr_high` | | run 2 + learning rate 5e-4 | open | |
-| 5 | `tune_lr_low` | | run 2 + learning rate 2e-4 | open | |
-| 6 | `tune_head_init` | | run 2 + classifier start from 43 images per class (about 1.25 h) | lilian | running 12 Oct: snapshot at epoch 5 of 10 received, final result pending |
+| 3 | `tune_label_smoothing` | | run 2 + label smoothing 0.1 | Ryan | done 13 Oct: 72.17% |
+| 4 | `tune_lr_high` | | run 2 + learning rate 5e-4 | Ryan | done 13 Oct: 69.28% |
+| 5 | `tune_lr_low` | | run 2 + learning rate 2e-4 | Ryan | done 13 Oct: 72.37% |
+| 6 | `tune_head_init` | | run 2 + classifier start from 43 images per class (about 1.25 h) | lilian | done 13 Oct: 69.98% |
 | 7 | `abl_adaptformer_only` | | AdaptFormer alone at 5%, for the report | lilian | done 12 Oct: 71.09% |
-| 8 | `abl_lora_only` | | LoRA alone at 5%, for the report | open | |
-| 9 | `abl_adaptformer_last6` | | AdaptFormer in the last 6 blocks only, twice the bottleneck; compare with run 7 | Nicole | done 16 Oct, files pending |
-| 10 | `tune_ls_lr2e4` | | run 2 + label smoothing 0.1 + learning rate 2e-4 (the two changes that each helped) | Nicole | done 16 Oct |
-| 11 | `tune_ls_lr1e4` | | run 10 with learning rate 1e-4 (does lower still help?) | Nicole | done 16 Oct: best so far |
-| 12 | `full_ft_ls` | | full fine-tuning + label smoothing 0.1, so the baseline gets the same trick | Nicole | done 16 Oct, files pending |
-| 13 | `tune_ls_lr5e5` | | run 11 with learning rate 5e-5 (does lower still help?) | Nicole | done 18 Oct: level with run 11 |
+| 8 | `abl_lora_only` | | LoRA alone at 5%, for the report | Ryan | done 13 Oct: 70.76% |
+| 9 | `abl_adaptformer_last6` | | AdaptFormer in the last 6 blocks only, twice the bottleneck; compare with run 7 | Nicole | done 16 Oct: 70.17% |
+| 10 | `tune_ls_lr2e4` | | run 2 + label smoothing 0.1 + learning rate 2e-4 (the two changes that each helped) | Nicole | done 16 Oct: 72.35% |
+| 11 | `tune_ls_lr1e4` | | run 10 with learning rate 1e-4 (does lower still help?) | Nicole | done 16 Oct: 73.02% |
+| 12 | `full_ft_ls` | | full fine-tuning + label smoothing 0.1, so the baseline gets the same trick | Nicole | done 16 Oct: 73.98% |
+| 13 | `tune_ls_lr5e5` | | run 11 with learning rate 5e-5 (does lower still help?) | Nicole | done 18 Oct: 73.52%, level with run 11 |
 | 14 | `tune_ls_lr3e5` | | run 11 with learning rate 3e-5; only if run 13 beats run 11 | - | skipped: run 13 was level with run 11 |
-| 15 | `tune_head_lr_half` | | run 11 with the head at half the adapters' learning rate (head 5e-5) | friend | done 18 Oct: best 5% run so far |
-| 16 | `tune_head_lr_double` | | run 11 with the head at twice the adapters' learning rate (head 2e-4) | friend | done 18 Oct: clearly worse |
-| 17 | `abl_linear_probe` | | only the head is trained (backbone frozen, no adapters); compare with run 11 to see what the adapters add | open (friend) | |
+| 15 | `tune_head_lr_half` | | run 11 with the head at half the adapters' learning rate (head 5e-5) | Ryan | done 18 Oct: 74.14%, best 5% run so far |
+| 16 | `tune_head_lr_double` | | run 11 with the head at twice the adapters' learning rate (head 2e-4) | Ryan | done 18 Oct: 71.75%, clearly worse |
+| 17 | `abl_linear_probe` | | only the head is trained (backbone frozen, no adapters); compare with run 11 to see what the adapters add | lilian | done: 61.66% (stopped by the budget guard at 6.36 of 10 epochs) |
 | 18 | `tune_ls_lr1e4_init43` | | run 11 + head start from all 43 images per class (about 1.25 h) | Nicole | running 18 Oct |
-| 19 | `tune_head_lr_quarter` | | run 15 with the head at a quarter of the adapters' rate (head 2.5e-5) | open (friend) | |
+| 19 | `tune_head_lr_quarter` | | run 15 with the head at a quarter of the adapters' rate (head 2.5e-5) | Nicole | done: 74.02%, level with run 15 |
 | 20 | `tune_head_lr_half_init43` | | run 15 + head start from all 43 images per class (about 1.25 h) | open (Nicole) | |
 | 21 | `full_ft_ls_headlow` | | run 12 with the head at the backbone's rate (3e-5 instead of 3e-4), fair comparison | open (friend) | |
 
@@ -196,13 +359,15 @@ All three use about 5% of the backbone, lr 3e-4, 10 epochs (about 1.18 h on an A
 
 | Run | Config | Design | Adapter % | Hold-out top-1 |
 |---|---|---|---|---|
-| A | `abl_lora_only` | LoRA r=116 on qkv | 4.984 | to run |
+| A | `abl_lora_only` | LoRA r=116 on qkv | 4.984 | 70.76 |
 | B | `abl_adaptformer_only` | AdaptFormer b=232 on FFN | 4.998 | 71.09 |
 | C | `abl_combined` | LoRA r=12 on qkv + AdaptFormer b=208 on FFN | 4.998 | 71.05 |
 
 How to read it: if C beats both A and B by about 1 point or more, adapting attention and FFN together is better than spending the same budget on one of them. If A or B matches C, the simpler design is the better story. Rank 116 has never been run, so watch its first loss lines.
 
 Reading so far (12 Oct): B and C tie (71.09 against 71.05), so adding LoRA on the attention to the FFN adapter gains nothing at an equal budget, and B is the simpler and faster design. Run A decides whether the FFN placement matters or only the number of adapter parameters.
+
+Result (13 Oct, files added 21 Oct): A ties too (70.76). All three designs are within 0.33 points, inside the sampling error, so at 5% of the backbone the placement (attention, FFN or both) does not matter; the number of adapter parameters does.
 
 ### 3. One-change tuning on `abl_combined` (one config per change)
 
@@ -211,22 +376,24 @@ Each config is `abl_combined` with exactly one setting changed, so it is compare
 | Config | The one change (baseline value) | Why | Hold-out top-1 |
 |---|---|---|---|
 | `abl_combined` | none: the baseline, 10 epochs (the earlier run stopped at 7.8) | uses the whole time budget | 71.05 (the 7.8-epoch run: 71.29, so no gain from training longer) |
-| `tune_label_smoothing` | label smoothing 0.1 (0.0) | the LoRA run got over-confident (train loss 0.12, hold-out loss rising); the brief hints at loss design | to run |
-| `tune_lr_low` | lr 2e-4 (3e-4) | 3e-4 was never tuned | to run |
-| `tune_lr_high` | lr 5e-4 (3e-4) | 3e-4 was never tuned | to run |
-| `tune_head_init` | head init from 43 images per class (10) | zero-shot 35.7% vs the brief's 43.7% | in progress (snapshot, 12 Oct): zero-shot 43.30%; ahead of `abl_combined` at epochs 1 and 2 (65.72 / 67.22 against 64.56 / 66.97), behind at epochs 3 and 4 (67.08 / 67.54 against 67.53 / 68.45), and its hold-out loss rises faster (1.60 against 1.51 at epoch 4). The head-init pass added about 5 minutes. |
+| `tune_label_smoothing` | label smoothing 0.1 (0.0) | the LoRA run got over-confident (train loss 0.12, hold-out loss rising); the brief hints at loss design | 72.17 (+1.12) |
+| `tune_lr_low` | lr 2e-4 (3e-4) | 3e-4 was never tuned | 72.37 (+1.32) |
+| `tune_lr_high` | lr 5e-4 (3e-4) | 3e-4 was never tuned | 69.28 (-1.77) |
+| `tune_head_init` | head init from 43 images per class (10) | zero-shot 35.7% vs the brief's 43.7% | 69.98 (-1.07): zero-shot 43.30%, ahead at epochs 1 and 2, behind from epoch 3, hold-out loss rises faster. The head-init pass added about 5 minutes. |
 
 Status on 13 Oct: runs 3, 4, 5 and 8 are finished and were scored on the leaderboard (scores are not written here). Label smoothing and the lower learning rate (2e-4) each gave a clear gain over `abl_combined`, the higher learning rate (5e-4) was clearly worse, and LoRA only was about level with AdaptFormer only and the combination. Their hold-out numbers are added when the run files arrive. Runs 10 to 12 follow from this. Status on 16 Oct: on the leaderboard, combining label smoothing with lr 2e-4 (run 10) was no better than either change alone, but label smoothing with lr 1e-4 (run 11) gave a further clear gain and is the best 5% run so far, ahead of the full fine-tuning baseline. Runs 13 and 14 continue the learning-rate sweep downwards. Note that `lr` also sets the classifier head's learning rate (`head_lr_mult` 1).
 
 Status on 18 Oct: the head's learning rate is the most sensitive setting found so far. A slower head (half the adapters' rate, run 15) gave the best 5% run, a faster head (twice, run 16) was clearly worse, and lowering the adapters' rate from 1e-4 to 5e-5 (run 13) made little difference. Full fine-tuning gained clearly from label smoothing (run 12) and is now level with the best 5% run, so it gets the slower head too (run 21). Adapters in the last 6 blocks only (run 9) did worse than in all 12. Runs 19 to 21 follow from this; run 14 was skipped.
 
+Status on 21 Oct: the hold-out files of runs 3 to 13, 15 to 17 and 19 are in `results/` and have run sections above. The hold-out numbers agree with the leaderboard reading: the best 5% run is `tune_head_lr_half` (74.14%), with `tune_head_lr_quarter` level (74.02%), against 73.98% for full fine-tuning with label smoothing. Still open: runs 18, 20 and 21.
+
 How to decide: one change worth a few tenths of a point cannot be told apart from noise on its own (about 0.3 points of sampling error per run). So after these runs, make one config with every change that went up, run it once, and keep it only if it beats `abl_combined` clearly (about 1 point). That combined run is the one to submit.
 
 `tune_head_init` ends near 1.25 h on an A100 80 GB (estimate: the extra feature pass adds 4 to 5 minutes), which is over the 1.2 h budget but inside the +-10% tolerance. Cheap check first: `EXTRA = "max_train_steps=50"` and read the zero-shot line.
 
-### 4. Later-layer adapters and final-model extras (written 12 Oct, none run on a GPU yet)
+### 4. Later-layer adapters and final-model extras (written 12 Oct)
 
-**Later layers (queue run 9).** `abl_adaptformer_last6`: AdaptFormer only in the last 6 of the 12 blocks with twice the bottleneck (464), 4.993% of the backbone. Everything else equals `abl_adaptformer_only` (all 12 blocks, 71.09%), so the pair shows whether the 5% is better spent where the fine-grained decision is made.
+**Later layers (queue run 9).** `abl_adaptformer_last6`: AdaptFormer only in the last 6 of the 12 blocks with twice the bottleneck (464), 4.993% of the backbone. Everything else equals `abl_adaptformer_only` (all 12 blocks, 71.09%), so the pair shows whether the 5% is better spent where the fine-grained decision is made. Result (16 Oct): 70.17%, 0.92 below all 12 blocks, so no; see its run section. The final-model extras below have not been run yet.
 
 **Final-model extras.** Use them on the design that is finally chosen, not as separate experiments:
 
@@ -257,8 +424,10 @@ Each row is one run. Add the result to `results/results.csv` and a section above
 ## Notes for the report
 
 - Trainable % is measured against the backbone and the head is excluded. The professor confirmed on 11 Oct 2026 that the classifier head does not count towards the 5% limit. It also matches the brief's 0.34% LoRA figure (rank 8 on qkv). State the rule in the report anyway.
-- Full fine-tuning (72.53%) beats the 5% design like for like (71.05% at 10 epochs; 71.29% at 7.78). The story for the report is how close 5% of the parameters gets (98% of the full fine-tuning accuracy) and what it costs or saves (latency 11.4 ms against 7.0 ms; 4.3M trained weights to store per task instead of 85.8M), not that it wins.
-- Ablation finding so far: AdaptFormer alone (71.09%) equals LoRA + AdaptFormer (71.05%) at the same 5% budget and is faster (9.2 against 11.4 ms). Unless `abl_lora_only` or a tuning run changes the picture, the simpler AdaptFormer-only design is the one to present as the final 5% model, with the combination reported as an ablation that did not help.
+- Full fine-tuning (72.53%) beats the 5% design like for like before tuning (71.05% at 10 epochs; 71.29% at 7.78). After tuning (21 Oct), the best 5% run (`tune_head_lr_half`, 74.14%) ties full fine-tuning with label smoothing (73.98%). The story for the report is that 5% of the parameters, tuned, matches full fine-tuning, and what it costs or saves (latency about 11.5 ms against 7.0 ms; 4.3M trained weights to store per task instead of 85.8M). Run 21 (full fine-tuning with a slower head) is still needed before calling it a tie for the report.
+- Ablation finding: at the same 5% budget, AdaptFormer alone (71.09%), LoRA alone (70.76%) and the combination (71.05%) tie, and AdaptFormer alone is the fastest (9.2 against 11.4 ms). Placing the adapters only in the last 6 blocks is worse (70.17%). All tuning runs used the combined design, so the final 5% model is the combined design with the tuned recipe. Either report it as is, or run AdaptFormer alone with the tuned recipe (label smoothing, lr 1e-4, head x0.5) and present the simpler design if it ties.
+- Tuning findings for the report, in order of size: the head's learning rate (2.4 points from x2 to x0.5), the adapters' learning rate (3e-4 to 1e-4 with label smoothing: +0.85; 5e-4 is clearly worse), label smoothing (+1.1 for the 5% design, +1.45 for full fine-tuning). Head init from 43 images per class raised zero-shot but lowered the final accuracy at lr 3e-4.
+- What the parts add (hold-out top-1): class-mean head 35.70 (43.30 with 43 images per class) -> trained head only 61.66 (stopped early) -> adapters 73.02 -> tuned head rate 74.14.
 - Open question for the professor: which model's predictions go to the leaderboard and to the 2 Phase 2 submissions: the full fine-tuning model, the 5% model, or one of each?
 - Open question for the professor: an 80 GB A100 is counted here as 80 GB (budget 1.2 h). The LoRA run peaked at 6.7 GiB, so ask whether such a run may use the full 2 h.
 - Zero-shot baseline for the report (0% trained, head set from class means): 43.30% with all 43 training images per class, 35.70% with 10 per class. The brief reports 43.7%.
