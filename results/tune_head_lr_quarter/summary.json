@@ -1,0 +1,22 @@
+{
+ "name": "tune_head_lr_quarter",
+ "who": "Nicole",
+ "method": "lora_adaptformer",
+ "holdout_top1": 74.02,
+ "holdout_top5": 90.17,
+ "zero_shot_top1": 35.7,
+ "trainable_params": 4287936,
+ "trainable_pct": 4.998,
+ "head_params": 7690000,
+ "latency_ms_bs1": 11.7,
+ "train_hours": 1.181,
+ "gpu": "NVIDIA A100-SXM4-80GB",
+ "gpu_gb": 80,
+ "equiv_hours_48gb": 1.968,
+ "peak_vram_gib": 7.3,
+ "epochs": 10.0,
+ "steps": 33590,
+ "lr": 0.0001,
+ "batch_size": 128,
+ "notes": "head lr 0.25 x adapters (lr 1e-4, label smoothing 0.1)"
+}
