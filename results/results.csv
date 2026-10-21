@@ -18,3 +18,4 @@ tune_ls_lr1e4,Nicole,lora_adaptformer,73.02,89.33,35.7,4287936,4.998,7690000,11.
 tune_ls_lr2e4,Nicole,lora_adaptformer,72.35,88.36,35.7,4287936,4.998,7690000,11.8,1.187,NVIDIA A100-SXM4-80GB,80,1.979,7.3,10.0,33590,0.0002,128,,combination: label smoothing 0.1 + lr 2e-4
 tune_ls_lr5e5,Nicole,lora_adaptformer,73.52,89.78,35.7,4287936,4.998,7690000,11.3,1.18,NVIDIA A100-SXM4-80GB,80,1.967,7.3,10.0,33590,5e-05,128,,combination: label smoothing 0.1 + lr 5.0e-5
 abl_linear_probe,lilian,linear_probe,62.62,82.75,35.7,0,0.0,7690000,8.5,1.192,NVIDIA A100-SXM4-40GB,40,0.993,1.8,10.0,33590,0.0001,128,,"linear probe: head only, backbone frozen (lr 1e-4, label smoothing 0.1)"
+imp_droppath,lilian,lora_adaptformer,74.09,90.19,35.7,4287936,4.998,7690000,11.4,1.356,NVIDIA A100-SXM4-40GB,40,1.13,7.3,10.0,33590,0.0001,128,,tune_head_lr_half + stochastic depth 0.1

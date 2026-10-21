@@ -32,6 +32,7 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | tune_head_lr_double | `tune_ls_lr1e4` + head lr x2 (2e-4) | `tune_head_lr_double` | 71.75 | 4.998 | 7.69M (trained) | 1.28 (A100 40 GB) | not recorded here |
 | full_ft_ls | Full fine-tuning + label smoothing 0.1 | `full_ft_ls` | 73.98 | 100 | 7.69M (trained) | 1.13 | not recorded here |
 | abl_linear_probe | Head only, backbone frozen (label smoothing 0.1, lr 1e-4, 10 epochs) | `abl_linear_probe` | 62.62 | 0 | 7.69M (trained) | 1.19 (A100 40 GB) | not recorded here |
+| imp_droppath | `tune_head_lr_half` + stochastic depth 0.1 | `imp_droppath` | 74.09 | 4.998 | 7.69M (trained) | about 1.32 (A100 40 GB; 1.36 recorded, see section) | not recorded here |
 
 Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
@@ -334,6 +335,35 @@ Hold-out top-1 by epoch:
   - The head ran at 1e-4 (x1). The slower-head finding does not carry over to a probe, where the head is the only part that learns, so this number is a fair baseline as it is.
 - **Log:** `results/abl_linear_probe/log.jsonl`, `summary.json`.
 
+### imp_droppath (21 Oct 2026, lilian)
+
+- **Setup:** `configs/imp_droppath.yaml`: `tune_head_lr_half` (run 15, 74.14%) with one change, stochastic depth 0.1 (`drop_path_rate`). LoRA r=12 + AdaptFormer b=208, lr 1e-4, head x0.5, label smoothing 0.1, 10 epochs. Queue run 23, the first of the section 5 improvement runs.
+- **Result:** hold-out top-1 74.09%, top-5 90.19%, hold-out loss 1.251. Zero-shot 35.70%.
+- **Efficiency:** 4,287,936 adapter params = 4.998%. Latency 11.4 ms. Peak VRAM 7.3 GiB. A100 40 GB, 10 epochs (33,590 steps), about 990 img/s (run 15: about 1,030, so stochastic depth costs no real speed).
+- **Two processes in one folder:** at 76 minutes, while the run was at step ~33,000, a second training process started in the same folder (most likely the training cell was run again after the VS Code connection to Colab dropped, while the first process kept running on the VM). It resumed from the step-32,000 checkpoint and both ran side by side to the end, each at about half speed; both wrote to `log.jsonl` (the steps jump backwards from line 669) and to the results. Both trained the same model from the same checkpoint and ended at the same score (74.085% and 74.095% at epoch 10), so the result stands. The recorded 1.356 h is inflated by the shared GPU in the last minutes; the run alone would have taken about 1.32 h (step 32,900 at 77.7 min at full speed, then 690 steps at 990 img/s), 0.55 of the 2.4 h budget on a 40 GB card, so inside the budget either way.
+- **Hold-out by epoch:**
+
+  | Epoch | `imp_droppath` top-1 | Hold-out loss | `tune_head_lr_half` top-1 | Hold-out loss |
+  |---|---|---|---|---|
+  | 1 | 63.67 | 1.749 | 65.81 | 1.715 |
+  | 2 | 68.44 | 1.495 | 69.64 | 1.484 |
+  | 3 | 71.23 | 1.375 | 71.90 | 1.413 |
+  | 4 | 72.17 | 1.324 | 72.81 | 1.355 |
+  | 5 | 73.03 | 1.296 | 73.64 | 1.346 |
+  | 6 | 73.48 | 1.270 | 73.91 | 1.327 |
+  | 7 | 73.75 | 1.261 | 73.95 | 1.331 |
+  | 8 | 73.94 | 1.255 | 74.00 | 1.324 |
+  | 9 | 74.09 | 1.251 | 74.11 | 1.325 |
+  | 10 (final) | 74.09 | 1.251 | 74.14 | 1.325 |
+
+- **Training loss (mean per epoch):** 3.55, 2.88, 2.60, 2.43, 2.31, 2.23, 2.17, 2.13, 2.10, 2.09 (run 15: 1.79 at the end).
+- **Interpretation:**
+  - No accuracy gain: 74.09 against 74.14, a tie (the noise on a difference is about 0.45). Top-5 also ties (90.19 against 90.25).
+  - It does make the model better calibrated: the hold-out loss is clearly lower (1.251 against 1.325, both with label smoothing) and keeps falling to the end, while run 15's flattens from epoch 6. The training loss stays higher (2.09 against 1.79). So stochastic depth works as a regulariser, but over-confidence was no longer what limited top-1 once label smoothing and the slow head were in.
+  - It starts slower (2.1 points behind after epoch 1) and catches up by epoch 9. With a longer schedule it might pull ahead; that is only worth testing inside a longer run (Mixup, run 25), not on its own.
+  - For the combined run (29): it does not meet the "about 0.5 points or more" rule, so leave it out of the 10-epoch recipe. If the combined run uses Mixup and 15 epochs, adding it costs nothing and may help; decide after run 25.
+- **Log:** `results/imp_droppath/log.jsonl` (interleaved at the end, see above), `summary.json`.
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -364,7 +394,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 20 | `tune_head_lr_half_init43` | | run 15 + head start from all 43 images per class (about 1.25 h) | open (Nicole) | |
 | 21 | `full_ft_ls_headlow` | | run 12 with the head at the backbone's rate (3e-5 instead of 3e-4), fair comparison | open (friend) | |
 | 22 | no training | | test-size check on a finished run: `python -m common.evaluate <run folder> --sizes 224 256 288` (minutes; see section 5) | open (lilian) | |
-| 23 | `imp_droppath` | | run 15 + stochastic depth 0.1 | open (lilian) | |
+| 23 | `imp_droppath` | | run 15 + stochastic depth 0.1 | lilian | done 21 Oct: 74.09%, tie with run 15 (lower hold-out loss) |
 | 24 | `imp_ema` | | run 15 + weight EMA 0.9998 (hold-out and final.pt use the averaged weights) | open (lilian) | |
 | 25 | `imp_mixup` | | run 15 + Mixup 0.8 / CutMix 1.0, 15 epochs. **A100 40 GB only** (about 1.9 h of the 2.4 h budget) | open (lilian) | |
 | 26 | `imp_trivialaug` | | run 15 + TrivialAugment + random erasing 0.25; stop if img/s falls well below 1,000 | open (lilian) | |
@@ -440,7 +470,7 @@ Each improvement run is `tune_head_lr_half` (run 15, 74.14%) with one change. Ga
 | Run | Change | What it does | Typical gain in the literature |
 |---|---|---|---|
 | 22 | test at 256 / 288 px (no training) | random crops make objects look larger in training than the 224 px centre crop at test; a slightly larger test size fixes the mismatch (FixRes, Touvron et al. 2019). Latency grows with the size. | +0.3 to 1 |
-| 23 | stochastic depth 0.1 | randomly skips a block's attention or FFN branch while training | +0.3 to 1 |
+| 23 | stochastic depth 0.1 | randomly skips a block's attention or FFN branch while training | +0.3 to 1. **Result: 74.09%, a tie** (hold-out loss lower: 1.251 against 1.325) |
 | 24 | weight EMA 0.9998 | averages the weights over the last 1.5 epochs or so (a cheap cousin of model soups, Wortsman et al. 2022) | +0.2 to 0.5 |
 | 25 | Mixup / CutMix, 15 epochs | trains on blended pairs of images and labels; needs more epochs, so A100 40 GB only (budget 2.4 h) | +0.5 to 2 |
 | 26 | TrivialAugment + random erasing | more variety from the same 45 images | +0.5 to 1.5 (if the loader keeps up) |
