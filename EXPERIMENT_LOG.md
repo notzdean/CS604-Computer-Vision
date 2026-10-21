@@ -31,7 +31,6 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | tune_head_lr_quarter | `tune_ls_lr1e4` + head lr x0.25 (2.5e-5) | `tune_head_lr_quarter` | 74.02 | 4.998 | 7.69M (trained) | 1.18 | not recorded here |
 | tune_head_lr_double | `tune_ls_lr1e4` + head lr x2 (2e-4) | `tune_head_lr_double` | 71.75 | 4.998 | 7.69M (trained) | 1.28 (A100 40 GB) | not recorded here |
 | full_ft_ls | Full fine-tuning + label smoothing 0.1 | `full_ft_ls` | 73.98 | 100 | 7.69M (trained) | 1.13 | not recorded here |
-| abl_linear_probe | Head only, backbone frozen (label smoothing 0.1, lr 1e-4), stopped at 6.36 epochs | `abl_linear_probe` | 61.66 | 0 | 7.69M (trained) | 1.30 | not recorded here |
 
 Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
@@ -303,20 +302,6 @@ Hold-out top-1 by epoch:
   - Its head runs at 3e-4, ten times the backbone. Given the head-rate finding above, run 21 (`full_ft_ls_headlow`, head at 3e-5) is the fair follow-up before the final comparison.
 - **Log:** `results/full_ft_ls/log.jsonl`, `summary.json`.
 
-### abl_linear_probe (after 18 Oct 2026, lilian)
-
-- **Setup:** `configs/abl_linear_probe.yaml`: only the classifier head is trained (backbone frozen, no adapters, 0% of backbone), with the `tune_ls_lr1e4` recipe (label smoothing 0.1, lr 1e-4, weight decay 0.01, head init from class means, 10 epochs planned).
-- **Result:** hold-out top-1 61.66%, top-5 82.34%, hold-out loss 2.065 (smoothed). Zero-shot 35.70%.
-- **Efficiency:** 0 adapter params; head 7.69M trained. Latency 7.3 ms. Peak VRAM 1.8 GiB. Train 1.298 h on an A100 80 GB.
-- **Stopped early:** the run reached only 6.36 of 10 epochs (21,350 steps). It ran at about 645 img/s, well below the adapter runs (1,100 img/s) although it does no backward pass through the backbone, so it was most likely loader-bound or on a slow Colab session (not investigated). It hit the 108% budget guard (1.296 h of 1.2 h).
-- **Hold-out top-1 by epoch:** 48.60, 54.45, 57.91, 59.47, 60.79, 61.55, 61.66 (final, epoch 6.36).
-- **Interpretation:**
-  - Training the head alone adds 26 points over the class-mean head (35.70 to 61.66).
-  - The adapters add another 11.4 points on top (`tune_ls_lr1e4`, same recipe: 73.02). So most of the gain over zero-shot comes from adapting the backbone, not only from training the head. Report both steps.
-  - Still rising at the end (+0.76 points in the last full epoch), so a full 10 epochs would land somewhat higher, perhaps around 63%. The adapter gap would still be about 10 points. If the exact number matters for the report, re-run with a faster session or a fixed `max_train_steps`.
-  - Its training loss stays high (2.62 in the last epoch) and the hold-out loss is still falling: the linear head on frozen features underfits rather than overfits.
-- **Log:** `results/abl_linear_probe/log.jsonl`, `summary.json`.
-
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -341,7 +326,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 14 | `tune_ls_lr3e5` | | run 11 with learning rate 3e-5; only if run 13 beats run 11 | - | skipped: run 13 was level with run 11 |
 | 15 | `tune_head_lr_half` | | run 11 with the head at half the adapters' learning rate (head 5e-5) | Ryan | done 18 Oct: 74.14%, best 5% run so far |
 | 16 | `tune_head_lr_double` | | run 11 with the head at twice the adapters' learning rate (head 2e-4) | Ryan | done 18 Oct: 71.75%, clearly worse |
-| 17 | `abl_linear_probe` | | only the head is trained (backbone frozen, no adapters); compare with run 11 to see what the adapters add | lilian | done: 61.66% (stopped by the budget guard at 6.36 of 10 epochs) |
+| 17 | `abl_linear_probe` | | only the head is trained (backbone frozen, no adapters); compare with run 11 to see what the adapters add | lilian | re-running: the first run stopped at 6.36 of 10 epochs (slow session, budget guard), result discarded |
 | 18 | `tune_ls_lr1e4_init43` | | run 11 + head start from all 43 images per class (about 1.25 h) | Nicole | running 18 Oct |
 | 19 | `tune_head_lr_quarter` | | run 15 with the head at a quarter of the adapters' rate (head 2.5e-5) | Nicole | done: 74.02%, level with run 15 |
 | 20 | `tune_head_lr_half_init43` | | run 15 + head start from all 43 images per class (about 1.25 h) | open (Nicole) | |
@@ -385,7 +370,7 @@ Status on 13 Oct: runs 3, 4, 5 and 8 are finished and were scored on the leaderb
 
 Status on 18 Oct: the head's learning rate is the most sensitive setting found so far. A slower head (half the adapters' rate, run 15) gave the best 5% run, a faster head (twice, run 16) was clearly worse, and lowering the adapters' rate from 1e-4 to 5e-5 (run 13) made little difference. Full fine-tuning gained clearly from label smoothing (run 12) and is now level with the best 5% run, so it gets the slower head too (run 21). Adapters in the last 6 blocks only (run 9) did worse than in all 12. Runs 19 to 21 follow from this; run 14 was skipped.
 
-Status on 21 Oct: the hold-out files of runs 3 to 13, 15 to 17 and 19 are in `results/` and have run sections above. The hold-out numbers agree with the leaderboard reading: the best 5% run is `tune_head_lr_half` (74.14%), with `tune_head_lr_quarter` level (74.02%), against 73.98% for full fine-tuning with label smoothing. Still open: runs 18, 20 and 21.
+Status on 21 Oct: the hold-out files of runs 3 to 13, 15, 16 and 19 are in `results/` and have run sections above. The hold-out numbers agree with the leaderboard reading: the best 5% run is `tune_head_lr_half` (74.14%), with `tune_head_lr_quarter` level (74.02%), against 73.98% for full fine-tuning with label smoothing. Still open: runs 17 (re-run), 18, 20 and 21.
 
 How to decide: one change worth a few tenths of a point cannot be told apart from noise on its own (about 0.3 points of sampling error per run). So after these runs, make one config with every change that went up, run it once, and keep it only if it beats `abl_combined` clearly (about 1 point). That combined run is the one to submit.
 
@@ -427,7 +412,7 @@ Each row is one run. Add the result to `results/results.csv` and a section above
 - Full fine-tuning (72.53%) beats the 5% design like for like before tuning (71.05% at 10 epochs; 71.29% at 7.78). After tuning (21 Oct), the best 5% run (`tune_head_lr_half`, 74.14%) ties full fine-tuning with label smoothing (73.98%). The story for the report is that 5% of the parameters, tuned, matches full fine-tuning, and what it costs or saves (latency about 11.5 ms against 7.0 ms; 4.3M trained weights to store per task instead of 85.8M). Run 21 (full fine-tuning with a slower head) is still needed before calling it a tie for the report.
 - Ablation finding: at the same 5% budget, AdaptFormer alone (71.09%), LoRA alone (70.76%) and the combination (71.05%) tie, and AdaptFormer alone is the fastest (9.2 against 11.4 ms). Placing the adapters only in the last 6 blocks is worse (70.17%). All tuning runs used the combined design, so the final 5% model is the combined design with the tuned recipe. Either report it as is, or run AdaptFormer alone with the tuned recipe (label smoothing, lr 1e-4, head x0.5) and present the simpler design if it ties.
 - Tuning findings for the report, in order of size: the head's learning rate (2.4 points from x2 to x0.5), the adapters' learning rate (3e-4 to 1e-4 with label smoothing: +0.85; 5e-4 is clearly worse), label smoothing (+1.1 for the 5% design, +1.45 for full fine-tuning). Head init from 43 images per class raised zero-shot but lowered the final accuracy at lr 3e-4.
-- What the parts add (hold-out top-1): class-mean head 35.70 (43.30 with 43 images per class) -> trained head only 61.66 (stopped early) -> adapters 73.02 -> tuned head rate 74.14.
+- What the parts add (hold-out top-1): class-mean head 35.70 (43.30 with 43 images per class) -> trained head only (run 17, re-run pending) -> adapters 73.02 -> tuned head rate 74.14.
 - Open question for the professor: which model's predictions go to the leaderboard and to the 2 Phase 2 submissions: the full fine-tuning model, the 5% model, or one of each?
 - Open question for the professor: an 80 GB A100 is counted here as 80 GB (budget 1.2 h). The LoRA run peaked at 6.7 GiB, so ask whether such a run may use the full 2 h.
 - Zero-shot baseline for the report (0% trained, head set from class means): 43.30% with all 43 training images per class, 35.70% with 10 per class. The brief reports 43.7%.
