@@ -36,6 +36,7 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | imp_ema | `tune_head_lr_half` + weight EMA 0.9998 | `imp_ema` | 74.19 | 4.998 | 7.69M (trained) | 1.27 (A100 40 GB) | not recorded here |
 | imp_mixup | `tune_head_lr_half` + Mixup 0.8 / CutMix 1.0, 15 epochs | `imp_mixup` | 73.97 | 4.998 | 7.69M (trained) | 1.90 (A100 40 GB) | not recorded here |
 | imp_trivialaug | `tune_head_lr_half` + TrivialAugment + random erasing 0.25 | `imp_trivialaug` | 74.28 | 4.998 | 7.69M (trained) | 1.43 (A100 40 GB) | not recorded here |
+| imp_trivialaug at test size 288 | same model, scored at 288 px (no retraining; run 22) | `imp_trivialaug` + `--sizes 288` | **75.99** (76.23 with mirror averaging) | 4.998 | 7.69M (trained) | - | not recorded here |
 
 Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
@@ -425,6 +426,28 @@ Hold-out top-1 by epoch:
 - **Pattern after four runs:** stochastic depth 74.09, EMA 74.19, Mixup 73.97, TrivialAugment 74.28, against 74.14 for run 15. Four different regularisers land within 0.3 points of each other. The recipe has converged and none of them clears the "about 0.5 points" rule for the combined run (29).
 - **Log:** `results/imp_trivialaug/log.jsonl` (steps 14,050 to 16,000 logged twice, see above), `summary.json`.
 
+### Test size, run 22 (22 Oct 2026, lilian)
+
+- **Setup:** no training. `python -m common.evaluate <imp_trivialaug run folder> --sizes 224 256 288`: the finished `imp_trivialaug` model (trained at 224 px) scored on the same 20,000 hold-out images at three test sizes (resize to size x 248/224, centre crop; position embeddings interpolated by timm), each with and without mirror averaging.
+- **Result:**
+
+  | Test size | Top-1 | Top-5 | Hold-out loss | Top-1 with mirror averaging | Latency (batch 1) |
+  |---|---|---|---|---|---|
+  | 224 (as trained) | 74.28 | 90.47 | 1.311 | 74.67 (+0.39) | 11.4 ms |
+  | 256 | 75.78 (+1.50) | 91.25 | 1.238 | 76.00 (+0.22) | 11.7 ms |
+  | 288 | **75.99 (+1.71)** | **91.50** | **1.221** | **76.23** (+0.25) | 11.7 ms |
+
+- **Interpretation:**
+  - The largest gain since the head learning rate, and free: +1.71 top-1 at 288 px without retraining. Every metric improves together (top-5 +1.0, hold-out loss 1.311 to 1.221), so it is not a fluke of top-1.
+  - It is a paired comparison (the same model on the same 20,000 images), so its noise is far smaller than the 0.45 points between two separate runs: the gain is certain.
+  - Why: training uses random crops covering 35 to 100% of the image, resized to 224 px, so objects look larger in training than in the 224 px centre crop used at test. A larger test image restores the object size the model learned on (FixRes, Touvron et al. 2019). Fine-grained classes also gain from the extra detail.
+  - Diminishing returns: +1.50 at 256, only +0.21 more at 288. The optimum may lie a little higher; 320 and 352 are cheap to check.
+  - Mirror averaging adds +0.22 to +0.39 on top, at twice the inference cost; at 288 px both together give 76.23%.
+  - Cost: latency at batch 1 barely moves (11.4 to 11.7 ms) because a single image does not fill the A100; the compute per image grows with the number of patches (196 at 224, 324 at 288: about 1.7 times), which shows in throughput at large batch sizes. Report the latency at the size used, and say how it was measured.
+  - It applies to every model, not only the 5% one. For a fair comparison in the report, score the full fine-tuning models (`full_ft_ls`, run 21, run 27) at the same test size before comparing the two tracks.
+- **Decision:** submit the final 5% model (run 30) at 288 px (`python -m common.submit <run> --team XX --split val --size 288`), or at 320 / 352 if the extended check below wins. Mirror averaging is optional (+0.25, twice the latency).
+- **Follow-ups:** (a) `--sizes 288 320 352` on the same run, to find the optimum; (b) the same check on `full_ft_ls` (Nicole's Drive) for the fair track comparison.
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -454,7 +477,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 19 | `tune_head_lr_quarter` | | run 15 with the head at a quarter of the adapters' rate (head 2.5e-5) | Nicole | done: 74.02%, level with run 15 |
 | 20 | `tune_head_lr_half_init43` | | run 15 + head start from all 43 images per class (about 1.25 h) | open (Nicole) | |
 | 21 | `full_ft_ls_headlow` | | run 12 with the head at the backbone's rate (3e-5 instead of 3e-4), fair comparison | open (friend) | |
-| 22 | no training | | test-size check on a finished run: `python -m common.evaluate <run folder> --sizes 224 256 288` (minutes; see section 5) | open (lilian) | |
+| 22 | no training | | test-size check on a finished run: `python -m common.evaluate <run folder> --sizes 224 256 288` (minutes; see section 5) | lilian | done 22 Oct on `imp_trivialaug`: 288 px gives 75.99% (+1.71), 76.23% with mirror averaging. Follow-ups: sizes 320 / 352, and the same check on `full_ft_ls` |
 | 23 | `imp_droppath` | | run 15 + stochastic depth 0.1 | lilian | done 21 Oct: 74.09%, tie with run 15 (lower hold-out loss) |
 | 24 | `imp_ema` | | run 15 + weight EMA 0.9998 (hold-out and final.pt use the averaged weights) | lilian | done 21 Oct: 74.19%, tie with run 15 (ahead only mid-training) |
 | 25 | `imp_mixup` | | run 15 + Mixup 0.8 / CutMix 1.0, 15 epochs. **A100 40 GB only** (about 1.9 h of the 2.4 h budget) | lilian | done 22 Oct: 73.97%, tie with run 15 (converged; 50% more time) |
@@ -530,7 +553,7 @@ Each improvement run is `tune_head_lr_half` (run 15, 74.14%) with one change. Ga
 
 | Run | Change | What it does | Typical gain in the literature |
 |---|---|---|---|
-| 22 | test at 256 / 288 px (no training) | random crops make objects look larger in training than the 224 px centre crop at test; a slightly larger test size fixes the mismatch (FixRes, Touvron et al. 2019). Latency grows with the size. | +0.3 to 1 |
+| 22 | test at 256 / 288 px (no training) | random crops make objects look larger in training than the 224 px centre crop at test; a slightly larger test size fixes the mismatch (FixRes, Touvron et al. 2019). Latency grows with the size. | +0.3 to 1. **Result: +1.71 at 288 px** (75.99%; 76.23% with mirror averaging), the only clear gain of section 5 |
 | 23 | stochastic depth 0.1 | randomly skips a block's attention or FFN branch while training | +0.3 to 1. **Result: 74.09%, a tie** (hold-out loss lower: 1.251 against 1.325) |
 | 24 | weight EMA 0.9998 | averages the weights over the last 1.5 epochs or so (a cheap cousin of model soups, Wortsman et al. 2022) | +0.2 to 0.5. **Result: 74.19%, a tie** (up to +1.2 mid-training, none at the end) |
 | 25 | Mixup / CutMix, 15 epochs | trains on blended pairs of images and labels; needs more epochs, so A100 40 GB only (budget 2.4 h) | +0.5 to 2. **Result: 73.97%, a tie** (converged at 15 epochs) |
