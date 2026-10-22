@@ -436,17 +436,20 @@ Hold-out top-1 by epoch:
   | 224 (as trained) | 74.28 | 90.47 | 1.311 | 74.67 (+0.39) | 11.4 ms |
   | 256 | 75.78 (+1.50) | 91.25 | 1.238 | 76.00 (+0.22) | 11.7 ms |
   | 288 | **75.99 (+1.71)** | **91.50** | **1.221** | **76.23** (+0.25) | 11.7 ms |
+  | 320 | 75.28 (+1.00) | 91.16 | 1.260 | 75.55 (+0.27) | 38.9 ms (an outlier of the timing, see below) |
+  | 352 | 74.06 (-0.22) | 90.56 | 1.326 | 74.35 (+0.29) | 11.6 ms |
 
 - **Interpretation:**
   - The largest gain since the head learning rate, and free: +1.71 top-1 at 288 px without retraining. Every metric improves together (top-5 +1.0, hold-out loss 1.311 to 1.221), so it is not a fluke of top-1.
   - It is a paired comparison (the same model on the same 20,000 images), so its noise is far smaller than the 0.45 points between two separate runs: the gain is certain.
   - Why: training uses random crops covering 35 to 100% of the image, resized to 224 px, so objects look larger in training than in the 224 px centre crop used at test. A larger test image restores the object size the model learned on (FixRes, Touvron et al. 2019). Fine-grained classes also gain from the extra detail.
-  - Diminishing returns: +1.50 at 256, only +0.21 more at 288. The optimum may lie a little higher; 320 and 352 are cheap to check.
+  - The optimum is 288 px (second check, 22 Oct): +1.50 at 256, +1.71 at 288, then down to +1.00 at 320 and -0.22 at 352. Too large a test image makes objects look larger than in training, and the interpolated position embeddings drift further from the trained 14 x 14 grid. Sizes between (272, 304) would differ by a few tenths at most; not worth checking.
+  - The 38.9 ms latency at 320 px is a timing outlier (352 px, with more patches, took 11.6 ms), most likely a slow GPU kernel choice for that one shape; re-measure before quoting any latency other than 224 and 288.
   - Mirror averaging adds +0.22 to +0.39 on top, at twice the inference cost; at 288 px both together give 76.23%.
   - Cost: latency at batch 1 barely moves (11.4 to 11.7 ms) because a single image does not fill the A100; the compute per image grows with the number of patches (196 at 224, 324 at 288: about 1.7 times), which shows in throughput at large batch sizes. Report the latency at the size used, and say how it was measured.
   - It applies to every model, not only the 5% one. For a fair comparison in the report, score the full fine-tuning models (`full_ft_ls`, run 21, run 27) at the same test size before comparing the two tracks.
-- **Decision:** submit the final 5% model (run 30) at 288 px (`python -m common.submit <run> --team XX --split val --size 288`), or at 320 / 352 if the extended check below wins. Mirror averaging is optional (+0.25, twice the latency).
-- **Follow-ups:** (a) `--sizes 288 320 352` on the same run, to find the optimum; (b) the same check on `full_ft_ls` (Nicole's Drive) for the fair track comparison.
+- **Decision:** submit the final 5% model (run 30) at **288 px** (`python -m common.submit <run> --team XX --split val --size 288`). Mirror averaging is optional (+0.25, twice the latency).
+- **Follow-up still open:** the same check on `full_ft_ls` (Nicole's Drive) and on run 27 when it finishes, for the fair track comparison.
 
 ## Next runs (planned 11 Oct 2026)
 
@@ -477,7 +480,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 19 | `tune_head_lr_quarter` | | run 15 with the head at a quarter of the adapters' rate (head 2.5e-5) | Nicole | done: 74.02%, level with run 15 |
 | 20 | `tune_head_lr_half_init43` | | run 15 + head start from all 43 images per class (about 1.25 h) | open (Nicole) | |
 | 21 | `full_ft_ls_headlow` | | run 12 with the head at the backbone's rate (3e-5 instead of 3e-4), fair comparison | open (friend) | |
-| 22 | no training | | test-size check on a finished run: `python -m common.evaluate <run folder> --sizes 224 256 288` (minutes; see section 5) | lilian | done 22 Oct on `imp_trivialaug`: 288 px gives 75.99% (+1.71), 76.23% with mirror averaging. Follow-ups: sizes 320 / 352, and the same check on `full_ft_ls` |
+| 22 | no training | | test-size check on a finished run: `python -m common.evaluate <run folder> --sizes 224 256 288` (minutes; see section 5) | lilian | done 22 Oct on `imp_trivialaug`: 288 px gives 75.99% (+1.71), 76.23% with mirror averaging; 288 is the optimum (320: +1.00, 352: -0.22). Follow-up: the same check on `full_ft_ls` |
 | 23 | `imp_droppath` | | run 15 + stochastic depth 0.1 | lilian | done 21 Oct: 74.09%, tie with run 15 (lower hold-out loss) |
 | 24 | `imp_ema` | | run 15 + weight EMA 0.9998 (hold-out and final.pt use the averaged weights) | lilian | done 21 Oct: 74.19%, tie with run 15 (ahead only mid-training) |
 | 25 | `imp_mixup` | | run 15 + Mixup 0.8 / CutMix 1.0, 15 epochs. **A100 40 GB only** (about 1.9 h of the 2.4 h budget) | lilian | done 22 Oct: 73.97%, tie with run 15 (converged; 50% more time) |
