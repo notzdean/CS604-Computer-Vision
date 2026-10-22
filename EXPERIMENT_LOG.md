@@ -35,6 +35,7 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | imp_droppath | `tune_head_lr_half` + stochastic depth 0.1 | `imp_droppath` | 74.09 | 4.998 | 7.69M (trained) | about 1.32 (A100 40 GB; 1.36 recorded, see section) | not recorded here |
 | imp_ema | `tune_head_lr_half` + weight EMA 0.9998 | `imp_ema` | 74.19 | 4.998 | 7.69M (trained) | 1.27 (A100 40 GB) | not recorded here |
 | imp_mixup | `tune_head_lr_half` + Mixup 0.8 / CutMix 1.0, 15 epochs | `imp_mixup` | 73.97 | 4.998 | 7.69M (trained) | 1.90 (A100 40 GB) | not recorded here |
+| imp_trivialaug | `tune_head_lr_half` + TrivialAugment + random erasing 0.25 | `imp_trivialaug` | 74.28 | 4.998 | 7.69M (trained) | 1.43 (A100 40 GB) | not recorded here |
 
 Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
@@ -409,6 +410,21 @@ Hold-out top-1 by epoch:
 - **Pattern after three runs:** stochastic depth (74.09), weight EMA (74.19) and Mixup (73.97) all tie with run 15 (74.14). Three different regularisers giving the same number means the recipe has converged: what limits top-1 now is what the 5% adapters can learn from 43 images per class, not overfitting. The remaining levers that do not regularise are the test size (run 22) and more training data (all 45 images per class, run 30).
 - **Log:** `results/imp_mixup/log.jsonl`, `summary.json`.
 
+### imp_trivialaug (22 Oct 2026, lilian)
+
+- **Setup:** `configs/imp_trivialaug.yaml`: `tune_head_lr_half` (run 15, 74.14%) with stronger augmentation in the data loader: TrivialAugment (one random photometric or geometric operation per image) and random erasing with probability 0.25, both on the 224 px crop. 10 epochs. Queue run 26.
+- **Result:** hold-out top-1 74.28%, top-5 90.47%, hold-out loss 1.311. Zero-shot 35.70%.
+- **Efficiency:** 4,287,936 adapter params = 4.998%. Latency 11.8 ms (augmentation is training-only). Peak VRAM 7.3 GiB. Train 1.429 h on an A100 40 GB (1.19 h in 48 GB-equivalent, inside the 2.4 h budget), 10 epochs (33,590 steps), about 915 img/s against about 1,020 without the extra augmentation: as predicted, the CPU-side augmentation makes the run partly loader-bound and about 12% slower.
+- **One resume:** the session dropped after step 16,000 (42.6 min) and the run resumed from the step-14,000 checkpoint, so steps 14,050 to 16,000 appear twice in `log.jsonl` (lines 324 to 362 repeat them). One process at a time, the same data order, so the result stands. The recorded time continues from the checkpoint and does not count the lost 4 minutes.
+- **Hold-out top-1 by epoch:** 64.97, 69.25, 71.52, 72.66, 73.56, 73.72, 73.91, 74.23, 74.24, 74.28 (final). Run 15: 65.81, 69.64, 71.90, 72.81, 73.64, 73.91, 73.95, 74.00, 74.11, 74.14.
+- **Training loss (mean per epoch):** 3.44 falling to 2.04 (run 15: 1.79 at the end): the harder inputs keep the training loss higher.
+- **Interpretation:**
+  - The highest 5% number so far, but a tie: +0.14 top-1 (74.28 against 74.14), +0.22 top-5 (90.47 against 90.25), slightly lower hold-out loss (1.311 against 1.325). All inside the noise of a difference (about 0.45).
+  - Slightly behind for the first 7 epochs, ahead from epoch 8 (+0.23 at epoch 8), still creeping up at the end. Augmentation pays off late, so a longer schedule might widen the gap a little, but Mixup at 15 epochs showed that longer training alone does not help this recipe.
+  - Cost: about 12% more training time (loader-bound), nothing at inference.
+- **Pattern after four runs:** stochastic depth 74.09, EMA 74.19, Mixup 73.97, TrivialAugment 74.28, against 74.14 for run 15. Four different regularisers land within 0.3 points of each other. The recipe has converged and none of them clears the "about 0.5 points" rule for the combined run (29).
+- **Log:** `results/imp_trivialaug/log.jsonl` (steps 14,050 to 16,000 logged twice, see above), `summary.json`.
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -442,10 +458,10 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 23 | `imp_droppath` | | run 15 + stochastic depth 0.1 | lilian | done 21 Oct: 74.09%, tie with run 15 (lower hold-out loss) |
 | 24 | `imp_ema` | | run 15 + weight EMA 0.9998 (hold-out and final.pt use the averaged weights) | lilian | done 21 Oct: 74.19%, tie with run 15 (ahead only mid-training) |
 | 25 | `imp_mixup` | | run 15 + Mixup 0.8 / CutMix 1.0, 15 epochs. **A100 40 GB only** (about 1.9 h of the 2.4 h budget) | lilian | done 22 Oct: 73.97%, tie with run 15 (converged; 50% more time) |
-| 26 | `imp_trivialaug` | | run 15 + TrivialAugment + random erasing 0.25; stop if img/s falls well below 1,000 | open (lilian) | |
+| 26 | `imp_trivialaug` | | run 15 + TrivialAugment + random erasing 0.25; stop if img/s falls well below 1,000 | lilian | done 22 Oct: 74.28%, tie with run 15 (about 915 img/s, 12% slower) |
 | 27 | `full_ft_llrd` | `ckpt_every_steps=1000000` | run 21 + layer-wise lr decay 0.75; run after run 21 | open (lilian) | |
 | 28 | `imp_ep15_control` | | run 15 for 15 epochs, A100 40 GB; only if run 25 beats run 15 | - | skipped: run 25 did not beat run 15 |
-| 29 | (written after 22 to 27) | | run 15 + every change from 22 to 26 that gained about 0.5 points or more | - | so far none qualify (runs 23 to 25 tie); unless run 26 wins, the final 5% recipe stays run 15 (+ test size from run 22) |
+| 29 | (written after 22 to 27) | | run 15 + every change from 22 to 26 that gained about 0.5 points or more | - | not needed: none of runs 23 to 26 cleared 0.5 points (all within 0.3 of run 15). The final 5% recipe stays run 15, optionally with TrivialAugment (the nominal best, 74.28, no inference cost), plus the test size from run 22 |
 | 30 | run 29's config | `holdout_per_class=0` | final 5% model on all 45 images per class, new `RUN` name; leaderboard only | - | |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
@@ -518,7 +534,7 @@ Each improvement run is `tune_head_lr_half` (run 15, 74.14%) with one change. Ga
 | 23 | stochastic depth 0.1 | randomly skips a block's attention or FFN branch while training | +0.3 to 1. **Result: 74.09%, a tie** (hold-out loss lower: 1.251 against 1.325) |
 | 24 | weight EMA 0.9998 | averages the weights over the last 1.5 epochs or so (a cheap cousin of model soups, Wortsman et al. 2022) | +0.2 to 0.5. **Result: 74.19%, a tie** (up to +1.2 mid-training, none at the end) |
 | 25 | Mixup / CutMix, 15 epochs | trains on blended pairs of images and labels; needs more epochs, so A100 40 GB only (budget 2.4 h) | +0.5 to 2. **Result: 73.97%, a tie** (converged at 15 epochs) |
-| 26 | TrivialAugment + random erasing | more variety from the same 45 images | +0.5 to 1.5 (if the loader keeps up) |
+| 26 | TrivialAugment + random erasing | more variety from the same 45 images | +0.5 to 1.5 (if the loader keeps up). **Result: 74.28%, a tie** (12% slower, loader-bound) |
 | 27 | layer-wise lr decay 0.75 (full fine-tuning) | early layers change less than late ones, so general features are kept (Kumar et al. 2022; BEiT / MAE recipe) | +0.5 to 1 |
 
 Run 22 needs a finished run's folder with `final.pt`: the best one (run 15) is on Ryan's Drive, but any finished 5% run shows whether a larger test size helps. If it does, submit with `python -m common.submit <run> --team XX --size <best size>` and report the latency at that size (it is printed per size).
