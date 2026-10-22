@@ -462,7 +462,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 27 | `full_ft_llrd` | `ckpt_every_steps=1000000` | run 21 + layer-wise lr decay 0.75; run after run 21 | open (lilian) | |
 | 28 | `imp_ep15_control` | | run 15 for 15 epochs, A100 40 GB; only if run 25 beats run 15 | - | skipped: run 25 did not beat run 15 |
 | 29 | (written after 22 to 27) | | run 15 + every change from 22 to 26 that gained about 0.5 points or more | - | not needed: none of runs 23 to 26 cleared 0.5 points (all within 0.3 of run 15). The final 5% recipe stays run 15, optionally with TrivialAugment (the nominal best, 74.28, no inference cost), plus the test size from run 22 |
-| 30 | run 29's config | `holdout_per_class=0` | final 5% model on all 45 images per class, new `RUN` name; leaderboard only | - | |
+| 30 | `final_5pct_trivialaug` | | final 5% model: run 26's recipe (TrivialAugment, 74.28%) on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only; A100 40 GB (about 1.5 h) | open (lilian) | |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
 

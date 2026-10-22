@@ -1,0 +1,21 @@
+# Final 5% model (queue run 30): imp_trivialaug (74.28% hold-out, the nominal best 5% run) trained on ALL 45 images
+# per class (holdout_per_class 0): 4.7% more training data, which matters at 45 images per class.
+# Why this recipe: the four regularisers of section 5 all tie with tune_head_lr_half (within 0.3 points); this one is
+# the nominal best, costs nothing at inference, and its curve was still rising at the end, which suits more data.
+# No hold-out: the run cannot be scored locally (hold-out columns stay empty); it is judged on the leaderboard only.
+# GPU: A100 40 GB (budget 2.4 h; about 1.5 h). On an 80 GB card (budget 1.2 h) it would be stopped early.
+name: final_5pct_trivialaug
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+auto_augment: trivial
+re_prob: 0.25
+holdout_per_class: 0
+notes: "final 5% model: imp_trivialaug on all 45 images per class (no hold-out, A100 40 GB)"
