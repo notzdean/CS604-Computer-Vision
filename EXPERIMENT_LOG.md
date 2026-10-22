@@ -37,6 +37,7 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | imp_mixup | `tune_head_lr_half` + Mixup 0.8 / CutMix 1.0, 15 epochs | `imp_mixup` | 73.97 | 4.998 | 7.69M (trained) | 1.90 (A100 40 GB) | not recorded here |
 | imp_trivialaug | `tune_head_lr_half` + TrivialAugment + random erasing 0.25 | `imp_trivialaug` | 74.28 | 4.998 | 7.69M (trained) | 1.43 (A100 40 GB) | not recorded here |
 | imp_trivialaug at test size 288 | same model, scored at 288 px (no retraining; run 22) | `imp_trivialaug` + `--sizes 288` | **75.99** (76.23 with mirror averaging) | 4.998 | 7.69M (trained) | - | not recorded here |
+| final_5pct_trivialaug | final 5% model: `imp_trivialaug` recipe on all 45 images per class (no hold-out) | `final_5pct_trivialaug` | - (no hold-out; leaderboard only) | 4.998 | 7.69M (trained) | 1.36 (A100 40 GB) | not recorded here |
 
 Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
@@ -451,6 +452,16 @@ Hold-out top-1 by epoch:
 - **Decision:** submit the final 5% model (run 30) at **288 px** (`python -m common.submit <run> --team XX --split val --size 288`). Mirror averaging is optional (+0.25, twice the latency).
 - **Follow-up still open:** the same check on `full_ft_ls` (Nicole's Drive) and on run 27 when it finishes, for the fair track comparison.
 
+### final_5pct_trivialaug, run 30 (22 Oct 2026, lilian)
+
+- **Setup:** `configs/final_5pct_trivialaug.yaml`: the `imp_trivialaug` recipe (LoRA r=12 + AdaptFormer b=208, lr 1e-4, head x0.5, label smoothing 0.1, TrivialAugment + random erasing 0.25, 10 epochs) trained on all 45 images per class (`holdout_per_class: 0`, 450,000 images, 4.7% more than the hold-out runs). This is the final model of the efficient-adaptation track.
+- **Result:** no local score: there is no hold-out, so the hold-out columns are empty and `common.evaluate` refuses the run. It is judged on the CodaBench leaderboard only (scores are not written in this public repo).
+- **Efficiency:** 4,287,936 adapter params = 4.998% of the backbone; head 7.69M (not counted). Latency 11.8 ms at 224 px (about 11.7 ms at 288 px, see run 22). Peak VRAM 7.3 GiB. Train 1.364 h on an A100 40 GB (1.14 h in 48 GB-equivalent, 0.57 of the 2.4 h budget), 10 epochs (35,150 steps), about 950 img/s. One clean process, no resume.
+- **Training loss (mean per epoch):** 3.43, 2.78, 2.52, 2.37, 2.26, 2.18, 2.12, 2.08, 2.06, 2.04, the same curve as `imp_trivialaug` (3.44 to 2.04) to within 0.01. With 4.7% more images the training behaves identically, which is the only check available without a hold-out: the run trained as expected.
+- **Expected accuracy:** the same recipe scored 74.28% at 224 px and 75.99% at 288 px on the hold-out; the extra 2 images per class should add a little on top. The leaderboard is the real number.
+- **Submission:** `python -m common.submit <run folder> --team XX --split val --size 288` (288 px is the best test size, run 22); `--tta flip` adds about 0.25 at twice the inference cost. For Phase 2 (test set from 31 Oct) use the same command with `--split test`.
+- **Log:** `results/final_5pct_trivialaug/log.jsonl`, `summary.json`.
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -488,7 +499,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 27 | `full_ft_llrd` | `ckpt_every_steps=1000000` | run 21 + layer-wise lr decay 0.75; run after run 21 | open (lilian) | |
 | 28 | `imp_ep15_control` | | run 15 for 15 epochs, A100 40 GB; only if run 25 beats run 15 | - | skipped: run 25 did not beat run 15 |
 | 29 | (written after 22 to 27) | | run 15 + every change from 22 to 26 that gained about 0.5 points or more | - | not needed: none of runs 23 to 26 cleared 0.5 points (all within 0.3 of run 15). The final 5% recipe stays run 15, optionally with TrivialAugment (the nominal best, 74.28, no inference cost), plus the test size from run 22 |
-| 30 | `final_5pct_trivialaug` | | final 5% model: run 26's recipe (TrivialAugment, 74.28%) on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only; A100 40 GB (about 1.5 h) | open (lilian) | |
+| 30 | `final_5pct_trivialaug` | | final 5% model: run 26's recipe (TrivialAugment, 74.28%) on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only; A100 40 GB (about 1.5 h) | lilian | done 22 Oct: trained cleanly (1.36 h); submit at `--size 288` |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
 

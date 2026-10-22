@@ -22,3 +22,4 @@ imp_droppath,lilian,lora_adaptformer,74.09,90.19,35.7,4287936,4.998,7690000,11.4
 imp_ema,lilian,lora_adaptformer,74.19,90.28,35.7,4287936,4.998,7690000,11.9,1.271,NVIDIA A100-SXM4-40GB,40,1.059,7.3,10.0,33590,0.0001,128,,tune_head_lr_half + weight EMA 0.9998
 imp_mixup,lilian,lora_adaptformer,73.97,90.42,35.7,4287936,4.998,7690000,11.9,1.895,NVIDIA A100-SXM4-40GB,40,1.579,7.3,15.0,50385,0.0001,128,,"tune_head_lr_half + Mixup 0.8 / CutMix 1.0, 15 epochs (A100 40 GB)"
 imp_trivialaug,lilian,lora_adaptformer,74.28,90.47,35.7,4287936,4.998,7690000,11.8,1.429,NVIDIA A100-SXM4-40GB,40,1.191,7.3,10.0,33590,0.0001,128,,tune_head_lr_half + TrivialAugment + random erasing 0.25
+final_5pct_trivialaug,lilian,lora_adaptformer,,,,4287936,4.998,7690000,11.8,1.364,NVIDIA A100-SXM4-40GB,40,1.136,7.3,10.0,35150,0.0001,128,,"final 5% model: imp_trivialaug on all 45 images per class (no hold-out, A100 40 GB)"

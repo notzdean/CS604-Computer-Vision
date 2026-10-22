@@ -1,0 +1,22 @@
+{
+ "name": "final_5pct_trivialaug",
+ "who": "lilian",
+ "method": "lora_adaptformer",
+ "holdout_top1": "",
+ "holdout_top5": "",
+ "zero_shot_top1": "",
+ "trainable_params": 4287936,
+ "trainable_pct": 4.998,
+ "head_params": 7690000,
+ "latency_ms_bs1": 11.8,
+ "train_hours": 1.364,
+ "gpu": "NVIDIA A100-SXM4-40GB",
+ "gpu_gb": 40,
+ "equiv_hours_48gb": 1.136,
+ "peak_vram_gib": 7.3,
+ "epochs": 10.0,
+ "steps": 35150,
+ "lr": 0.0001,
+ "batch_size": 128,
+ "notes": "final 5% model: imp_trivialaug on all 45 images per class (no hold-out, A100 40 GB)"
+}
