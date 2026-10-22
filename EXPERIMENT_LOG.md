@@ -34,6 +34,7 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | abl_linear_probe | Head only, backbone frozen (label smoothing 0.1, lr 1e-4, 10 epochs) | `abl_linear_probe` | 62.62 | 0 | 7.69M (trained) | 1.19 (A100 40 GB) | not recorded here |
 | imp_droppath | `tune_head_lr_half` + stochastic depth 0.1 | `imp_droppath` | 74.09 | 4.998 | 7.69M (trained) | about 1.32 (A100 40 GB; 1.36 recorded, see section) | not recorded here |
 | imp_ema | `tune_head_lr_half` + weight EMA 0.9998 | `imp_ema` | 74.19 | 4.998 | 7.69M (trained) | 1.27 (A100 40 GB) | not recorded here |
+| imp_mixup | `tune_head_lr_half` + Mixup 0.8 / CutMix 1.0, 15 epochs | `imp_mixup` | 73.97 | 4.998 | 7.69M (trained) | 1.90 (A100 40 GB) | not recorded here |
 
 Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
@@ -393,6 +394,21 @@ Hold-out top-1 by epoch:
 - **Pattern after two runs:** stochastic depth and EMA both tie with run 15. Both act on the weights and the training noise; neither changes what the model sees. The 10-epoch recipe with label smoothing and the slow head looks saturated on that side, so the remaining chances are on the data side: Mixup / CutMix (run 25), stronger augmentation (run 26), the test size (run 22) and training on all 45 images per class for the final model (run 30).
 - **Log:** `results/imp_ema/log.jsonl`, `summary.json`.
 
+### imp_mixup (21 to 22 Oct 2026, lilian)
+
+- **Setup:** `configs/imp_mixup.yaml`: `tune_head_lr_half` (run 15, 74.14%) with Mixup 0.8 / CutMix 1.0 (timm `Mixup`, each batch is either blended or has a patch pasted from another image, labels mixed in proportion; label smoothing 0.1 applied inside the mixer), trained for 15 epochs instead of 10 because mixing makes the task harder. Queue run 25.
+- **Result:** hold-out top-1 73.97%, top-5 90.42%, hold-out loss 1.357. Zero-shot 35.70%.
+- **Efficiency:** 4,287,936 adapter params = 4.998%. Latency 11.9 ms. Peak VRAM 7.3 GiB. Train 1.895 h on an A100 40 GB (1.58 h in 48 GB-equivalent, inside the 2.4 h budget), 15 epochs (50,385 steps), about 1,020 img/s: mixing on the GPU costs no speed. One clean process.
+- **Hold-out top-1 by epoch:** 61.59, 66.58, 69.25, 70.62, 71.67, 71.92, 72.81, 73.06, 73.25, 73.50, 73.78, 73.86, 74.00, 74.04, 73.97 (final). Run 15 (10 epochs) for comparison: 65.81 after epoch 1, 74.14 at the end.
+- **Training loss (mean per epoch):** 4.92 falling to 3.55. It is the loss on mixed soft targets, so it cannot be compared with the other runs.
+- **Interpretation:**
+  - No gain: 73.97 against 74.14, 0.17 lower, inside the noise of a difference (about 0.45). Top-5 is 0.17 higher (90.42 against 90.25), also noise. The hold-out loss is slightly worse (1.357 against 1.325).
+  - Not a case of too few epochs: the curve is flat over the last three epochs (74.00, 74.04, 73.97) while the learning rate decays, so 15 epochs were enough to converge. It needed 13 epochs to reach what run 15 reaches in 9 (74.0), and 50% more training time for the same result.
+  - Why it does not help here, two likely reasons. First, Mixup and CutMix are cures for overfitting, and after label smoothing and the slow head our model no longer overfits much (run 15's hold-out loss keeps falling to the end). Second, for fine-grained classes the details that separate two classes are small, and blending two images or pasting a patch over the part that matters can hide them while the label still says the class is present; this mismatch is the motivation of SnapMix (Huang et al., AAAI 2021), which reports plain CutMix to be unreliable on fine-grained benchmarks.
+  - The control run (28, 15 epochs without Mixup) is not needed: it was only planned in case Mixup won.
+- **Pattern after three runs:** stochastic depth (74.09), weight EMA (74.19) and Mixup (73.97) all tie with run 15 (74.14). Three different regularisers giving the same number means the recipe has converged: what limits top-1 now is what the 5% adapters can learn from 43 images per class, not overfitting. The remaining levers that do not regularise are the test size (run 22) and more training data (all 45 images per class, run 30).
+- **Log:** `results/imp_mixup/log.jsonl`, `summary.json`.
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -425,11 +441,11 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 22 | no training | | test-size check on a finished run: `python -m common.evaluate <run folder> --sizes 224 256 288` (minutes; see section 5) | open (lilian) | |
 | 23 | `imp_droppath` | | run 15 + stochastic depth 0.1 | lilian | done 21 Oct: 74.09%, tie with run 15 (lower hold-out loss) |
 | 24 | `imp_ema` | | run 15 + weight EMA 0.9998 (hold-out and final.pt use the averaged weights) | lilian | done 21 Oct: 74.19%, tie with run 15 (ahead only mid-training) |
-| 25 | `imp_mixup` | | run 15 + Mixup 0.8 / CutMix 1.0, 15 epochs. **A100 40 GB only** (about 1.9 h of the 2.4 h budget) | open (lilian) | |
+| 25 | `imp_mixup` | | run 15 + Mixup 0.8 / CutMix 1.0, 15 epochs. **A100 40 GB only** (about 1.9 h of the 2.4 h budget) | lilian | done 22 Oct: 73.97%, tie with run 15 (converged; 50% more time) |
 | 26 | `imp_trivialaug` | | run 15 + TrivialAugment + random erasing 0.25; stop if img/s falls well below 1,000 | open (lilian) | |
 | 27 | `full_ft_llrd` | `ckpt_every_steps=1000000` | run 21 + layer-wise lr decay 0.75; run after run 21 | open (lilian) | |
-| 28 | `imp_ep15_control` | | run 15 for 15 epochs, A100 40 GB; only if run 25 beats run 15 | - | |
-| 29 | (written after 22 to 27) | | run 15 + every change from 22 to 26 that gained about 0.5 points or more | - | |
+| 28 | `imp_ep15_control` | | run 15 for 15 epochs, A100 40 GB; only if run 25 beats run 15 | - | skipped: run 25 did not beat run 15 |
+| 29 | (written after 22 to 27) | | run 15 + every change from 22 to 26 that gained about 0.5 points or more | - | so far none qualify (runs 23 to 25 tie); unless run 26 wins, the final 5% recipe stays run 15 (+ test size from run 22) |
 | 30 | run 29's config | `holdout_per_class=0` | final 5% model on all 45 images per class, new `RUN` name; leaderboard only | - | |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
@@ -501,7 +517,7 @@ Each improvement run is `tune_head_lr_half` (run 15, 74.14%) with one change. Ga
 | 22 | test at 256 / 288 px (no training) | random crops make objects look larger in training than the 224 px centre crop at test; a slightly larger test size fixes the mismatch (FixRes, Touvron et al. 2019). Latency grows with the size. | +0.3 to 1 |
 | 23 | stochastic depth 0.1 | randomly skips a block's attention or FFN branch while training | +0.3 to 1. **Result: 74.09%, a tie** (hold-out loss lower: 1.251 against 1.325) |
 | 24 | weight EMA 0.9998 | averages the weights over the last 1.5 epochs or so (a cheap cousin of model soups, Wortsman et al. 2022) | +0.2 to 0.5. **Result: 74.19%, a tie** (up to +1.2 mid-training, none at the end) |
-| 25 | Mixup / CutMix, 15 epochs | trains on blended pairs of images and labels; needs more epochs, so A100 40 GB only (budget 2.4 h) | +0.5 to 2 |
+| 25 | Mixup / CutMix, 15 epochs | trains on blended pairs of images and labels; needs more epochs, so A100 40 GB only (budget 2.4 h) | +0.5 to 2. **Result: 73.97%, a tie** (converged at 15 epochs) |
 | 26 | TrivialAugment + random erasing | more variety from the same 45 images | +0.5 to 1.5 (if the loader keeps up) |
 | 27 | layer-wise lr decay 0.75 (full fine-tuning) | early layers change less than late ones, so general features are kept (Kumar et al. 2022; BEiT / MAE recipe) | +0.5 to 1 |
 
