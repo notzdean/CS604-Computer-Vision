@@ -1,0 +1,20 @@
+# Fair-comparison run (equal length): full_ft_llrd (76.26%, 18.2 epochs, the whole budget) with ONE change: a fixed
+# 10 epochs (33,590 steps), the same length and cosine schedule as the 5% runs (imp_trivialaug, tune_head_lr_half).
+# Why: the 2-point gap between full_ft_llrd and the best 5% run mixes the method with the training length (18.2 vs
+# 10 epochs). This run and imp_trivialaug_fullbudget compare the two tracks at equal epochs and at equal budget.
+# Checkpoints are the whole model (about 1.1 GB), so they are only saved once per epoch.
+# GPU: A100 40 GB preferred (about 1.2 h of its 2.4 h budget). On an 80 GB card the 1.2 h budget is only just enough
+# (about 1.21 h; full_ft_ls took 1.13 h for 31,461 steps), inside the +-10% tolerance but at the edge.
+name: full_ft_llrd_10ep
+method: full_ft
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.3
+layer_decay: 0.75
+weight_decay: 0.05
+label_smoothing: 0.1
+head_init: true
+ckpt_every_steps: 1000000
+notes: "full_ft_llrd for 10 epochs (equal-length comparison with the 5% runs)"

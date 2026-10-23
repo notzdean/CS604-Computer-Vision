@@ -1,0 +1,19 @@
+# Fair-comparison run (equal budget): imp_trivialaug (74.28%, the best 5% run, 10 epochs = about 55% of the budget)
+# with ONE change: it fills the whole compute budget like full_ft_llrd did (epochs: null + budget_hours: auto).
+# Why: full_ft_llrd (76.26%) trained 18.2 epochs on an A100 40 GB (95% of the 96 GB-hour budget); the 5% runs never
+# used the whole budget without Mixup, so the 2-point gap mixes the method with the training length.
+# GPU: A100 40 GB (budget 2.4 h), the same card as full_ft_llrd: about 16 epochs at about 915 img/s.
+name: imp_trivialaug_fullbudget
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: null            # null -> as many epochs as fit in the budget (96 GB-hours / GPU size)
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+auto_augment: trivial
+re_prob: 0.25
+notes: "imp_trivialaug for the whole budget (equal-budget comparison with full_ft_llrd, A100 40 GB)"
