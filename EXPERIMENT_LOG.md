@@ -187,9 +187,25 @@ Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 - **Setup:** `configs/abl_lora_only.yaml`: LoRA r=116 on every `qkv` and no AdaptFormer, 4.984% of backbone. Same lr (3e-4), 10 epochs and other settings as `abl_combined`. Run A of the equal-budget ablation.
 - **Result:** hold-out top-1 70.76%, top-5 87.47%, hold-out loss 1.420.
 - **Efficiency:** 4,276,224 adapter params = 4.984%. Latency 10.4 ms. Peak VRAM 6.8 GiB. Train 1.173 h on an A100 40 GB (0.98 h in 48 GB-equivalent), about 1,130 img/s.
+- **Hold-out top-1 by epoch, the three equal-budget designs:**
+
+  | Epoch | A: `abl_lora_only` | Hold-out loss | B: `abl_adaptformer_only` | C: `abl_combined` |
+  |---|---|---|---|---|
+  | 1 | 63.48 | 1.560 | 64.37 | 64.56 |
+  | 2 | 65.97 | 1.494 | 66.47 | 66.97 |
+  | 3 | 66.29 | 1.538 | 67.44 | 67.53 |
+  | 4 | 67.23 | 1.562 | 68.08 | 68.45 |
+  | 5 | 67.71 | 1.564 | 68.69 | 68.77 |
+  | 6 | 68.78 | 1.539 | 69.45 | 69.59 |
+  | 7 | 69.72 | 1.476 | 70.17 | 70.48 |
+  | 8 | 70.30 | 1.449 | 70.62 | 70.77 |
+  | 9 | 70.61 | 1.429 | 70.98 | 71.07 |
+  | 10 (final) | 70.76 | 1.420 | 71.09 | 71.05 |
+
+- **Training loss (mean per epoch):** 1.93, 1.06, 0.71, 0.48, 0.32, 0.21, 0.14, 0.10, 0.08, 0.07.
 - **Interpretation:**
   - All three equal-budget designs tie: LoRA only 70.76, AdaptFormer only 71.09, combined 71.05. The spread (0.33) is inside the sampling error. At 5% of the backbone it does not matter whether the parameters go to attention, to the FFN, or to both.
-  - Rank 116 trained without trouble: the first loss lines and the curve look like the other two designs.
+  - Rank 116 trained without trouble: the first loss lines and the curve look like the other two designs. LoRA alone is slightly behind B and C at every epoch (by 0.3 to 1.2 points) and closes most of the gap by the end.
   - So the gain of the 5% design over LoRA r=8 (68.78) comes from the number of adapter parameters, not from where they sit.
 - **Log:** `results/abl_lora_only/log.jsonl`, `summary.json`.
 
@@ -197,7 +213,9 @@ Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
 - **Setup:** `configs/abl_adaptformer_last6.yaml`: AdaptFormer only in the last 6 of the 12 blocks, bottleneck 464 (twice that of `abl_adaptformer_only`), 4.993% of backbone. Everything else as `abl_adaptformer_only`.
 - **Result:** hold-out top-1 70.17%, top-5 87.27%, hold-out loss 1.453.
-- **Efficiency:** 4,283,616 adapter params = 4.993%. Latency 8.2 ms. Peak VRAM 3.6 GiB (half of the all-blocks design: no gradients flow through the first 6 blocks). Train 1.011 h, about 1,300 img/s, the fastest adapter run.
+- **Efficiency:** 4,283,616 adapter params = 4.993%. Latency 8.2 ms. Peak VRAM 3.6 GiB (half of the all-blocks design: no gradients flow through the first 6 blocks). Train 1.011 h on an A100 80 GB, about 1,300 img/s, the fastest adapter run.
+- **Hold-out top-1 by epoch:** 63.57, 65.81, 66.75, 67.03, 68.06, 68.75, 69.54, 69.80, 70.02, 70.17 (final); hold-out loss 1.553 falling to 1.453. `abl_adaptformer_only` (all 12 blocks): 64.37, 66.47, 67.44, 68.08, 68.69, 69.45, 70.17, 70.62, 70.98, 71.09.
+- **Training loss (mean per epoch):** 1.92, 0.98, 0.61, 0.40, 0.27, 0.18, 0.13, 0.10, 0.08, 0.08.
 - **Interpretation:**
   - 0.92 points below AdaptFormer in all 12 blocks (71.09), about 2 times the sampling error of the difference: probably a real loss, but small. It is behind at every epoch from epoch 1.
   - Spending the 5% only in the later layers, where the fine-grained decision is made, does not help. Adapting the early layers too is worth more than a wider adapter late.
@@ -239,7 +257,7 @@ Hold-out top-1 by epoch:
 
 ### Label smoothing + lower learning rate: `tune_ls_lr2e4`, `tune_ls_lr1e4`, `tune_ls_lr5e5` (16 to 18 Oct 2026, Nicole)
 
-`abl_combined` with label smoothing 0.1 and a lower learning rate. `head_lr_mult` is 1, so the head's learning rate drops with the adapters'. 10 epochs, A100 80 GB, about 1.18 to 1.19 h, 1,100 img/s, latency 11.3 to 11.8 ms, peak VRAM 7.3 GiB.
+`abl_combined` with label smoothing 0.1 and a lower learning rate (LoRA r=12 + AdaptFormer b=208, 4,287,936 adapter params = 4.998%). `head_lr_mult` is 1, so the head's learning rate drops with the adapters'. 10 epochs, A100 80 GB, about 1.18 to 1.19 h, 1,100 img/s, latency 11.3 to 11.8 ms, peak VRAM 7.3 GiB.
 
 | Epoch | `tune_ls_lr2e4` | `tune_ls_lr1e4` | `tune_ls_lr5e5` | `tune_label_smoothing` (lr 3e-4) |
 |---|---|---|---|---|
@@ -266,7 +284,7 @@ Hold-out top-1 by epoch:
 
 ### Head learning rate: `tune_head_lr_half`, `tune_head_lr_quarter`, `tune_head_lr_double` (18 Oct 2026, Ryan and Nicole)
 
-`tune_ls_lr1e4` (adapters at 1e-4, label smoothing 0.1, 73.02%) with only the head's learning rate changed through `head_lr_mult`.
+`tune_ls_lr1e4` (adapters at 1e-4, label smoothing 0.1, 73.02%) with only the head's learning rate changed through `head_lr_mult`. All four: LoRA r=12 + AdaptFormer b=208, 4,287,936 adapter params = 4.998%, 10 epochs, peak VRAM 7.3 GiB.
 
 | Config | Head lr | Who | Top-1 | Top-5 | vs `tune_ls_lr1e4` | Hold-out loss | Train h (GPU) | Latency |
 |---|---|---|---|---|---|---|---|---|
@@ -482,9 +500,14 @@ Hold-out top-1 by epoch:
   | 8 | 74.81 | 1.325 | 73.89 | 1.557 |
   | 9 | 75.17 | 1.342 | 73.98 (final, 9.37) | 1.580 |
   | 10 | 75.40 | 1.357 | | |
+  | 11 | 75.39 | 1.380 | | |
   | 12 | 75.61 | 1.393 | | |
+  | 13 | 75.87 | 1.409 | | |
   | 14 | 75.92 | 1.430 | | |
+  | 15 | 76.06 | 1.440 | | |
   | 16 | 76.18 | 1.460 | | |
+  | 17 | 76.20 | 1.465 | | |
+  | 18 | 76.24 | 1.465 | | |
   | 18.2 (final) | 76.26 | 1.468 | | |
 
 - **Training loss (mean per epoch):** 3.01, 2.37, 2.08, 1.89, 1.75, ... 1.39 at the end (`full_ft_ls`: 1.45 at the end).

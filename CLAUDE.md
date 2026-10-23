@@ -66,7 +66,7 @@ There is no test suite or linter. The smoke config is the pipeline test. Do not 
 
 ## Conventions for anyone (human or agent) working here
 
-- **Status (21 Oct 2026): the pipeline works end to end on an A100**, including the submission file (runs trained and accepted by CodaBench). Hold-out results (all in `results/results.csv`; details in `EXPERIMENT_LOG.md`):
+- **Status (23 Oct 2026): the pipeline works end to end on an A100**, including the submission file (runs trained and accepted by CodaBench). Hold-out results (all in `results/results.csv`; details in `EXPERIMENT_LOG.md`):
   - Baselines: LoRA r=8 68.78%; full fine-tuning (required track) 72.53%, and 73.98% with label smoothing (`full_ft_ls`). **Best full fine-tuning: `full_ft_llrd`, 76.26%** (layer-wise lr decay 0.75, slower head, label smoothing; it filled the 2.4 h budget of an A100 40 GB: 18.2 epochs), the best run of either track at 224 px.
   - Equal 5% budget, untuned (lr 3e-4, 10 epochs): LoRA only 70.76%, AdaptFormer only 71.09%, combined 71.05% (`abl_combined`, the comparison point for the `tune_*` runs): a tie, so placement does not matter. AdaptFormer in the last 6 blocks only is worse (70.17%).
   - Tuning the combined design: label smoothing 0.1 (+1.1) and a lower lr (2e-4: +1.3; 5e-4 is worse) each help; with label smoothing, lr 1e-4 gives 73.02% and 5e-5 is level (73.52%). The head's learning rate matters most: head at 0.5x the adapters' rate gives the **best 5% run, `tune_head_lr_half`, 74.14%** (0.25x level at 74.02%, 2x worse at 71.75%). Head init from 43 images per class raised zero-shot (43.30%) but ended lower (69.98%).
