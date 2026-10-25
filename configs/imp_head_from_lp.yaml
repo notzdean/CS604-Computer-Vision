@@ -1,0 +1,20 @@
+# Head trained first: imp_trivialaug (the best 5% run) with ONE change, the head starts from the trained head of
+# abl_linear_probe (62.6% on its own) instead of the class-average head (35.7%). Train-the-head-first, then the
+# adapters (LP-FT, Kumar et al. 2022): a good head early on sends cleaner signals to the adapters.
+# NEEDS abl_linear_probe/final.pt in YOUR runs folder: copy it from Lilian's Drive to My Drive/cs604_runs/abl_linear_probe/.
+# The zero-shot line at the start should then read about 62.6%.
+name: imp_head_from_lp
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+head_init_from: abl_linear_probe
+auto_augment: trivial
+re_prob: 0.25
+notes: "imp_trivialaug + head started from the linear probe"

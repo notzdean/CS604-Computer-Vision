@@ -1,0 +1,17 @@
+# Simpler 5% design with the best settings: imp_trivialaug with AdaptFormer only (bottleneck 232, 4.998%) instead of
+# LoRA r=12 + AdaptFormer b=208. With the old settings the two tied (71.09 vs 71.05) and AdaptFormer only is faster
+# (9.2 vs 11.4 ms). If they tie again, it is the simpler final model.
+name: imp_adaptformer_only
+method: adaptformer
+method_args: {bottleneck: 232, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+auto_augment: trivial
+re_prob: 0.25
+notes: "imp_trivialaug settings with AdaptFormer only (b=232)"

@@ -1,0 +1,19 @@
+# Layer-wise learning rate on the 5% model: imp_trivialaug (the best 5% run) with ONE change, layer_decay 0.75:
+# each block's adapters learn at 0.75 x the rate of the block above (top block 7.5e-5, first block about 3e-6).
+# Why: the same idea gave full fine-tuning its jump (full_ft_llrd); early features are general and already good.
+# The head keeps its rate (5e-5).
+name: imp_trivialaug_llrd
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+layer_decay: 0.75
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+auto_augment: trivial
+re_prob: 0.25
+notes: "imp_trivialaug + layer-wise lr decay 0.75"
