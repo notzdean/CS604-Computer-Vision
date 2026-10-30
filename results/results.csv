@@ -29,3 +29,4 @@ imp_head_from_lp,lilian,lora_adaptformer,70.28,87.75,62.62,4287936,4.998,7690000
 imp_trivialaug_fullbudget,Nicole,lora_adaptformer,74.18,90.38,35.7,4287936,4.998,7690000,12.2,2.36,NVIDIA A100-SXM4-40GB,40,1.967,7.3,16.89,56740,0.0001,128,,imp_trivialaug for the whole budget (equal-budget comparison with full_ft_llrd, A100 40 GB)
 tune_ls_lr1e4_init43,Nicole,lora_adaptformer,71.99,88.61,43.3,4287936,4.998,7690000,11.5,1.267,NVIDIA A100-SXM4-80GB,80,2.111,7.3,10.0,33590,0.0001,128,,best recipe + head init from 43 images per class
 final_full_ft_llrd,lilian,full_ft,,,,85798656,100.0,7690000,7.2,1.256,NVIDIA A100-SXM4-40GB,40,1.046,9.6,10.0,35150,0.0001,128,,final full fine-tuning model: full_ft_llrd_10ep on all 45 images per class (no hold-out)
+full_ft_ls_headlow,lilian,full_ft,75.75,90.69,35.7,85798656,100.0,7690000,7.0,2.261,NVIDIA A100-SXM4-40GB,40,1.884,9.6,18.18,61076,3e-05,128,,full fine-tuning + label smoothing 0.1 + head lr = backbone lr (fair comparison)

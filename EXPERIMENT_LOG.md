@@ -40,6 +40,7 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | final_5pct_trivialaug | final 5% model: `imp_trivialaug` recipe on all 45 images per class (no hold-out) | `final_5pct_trivialaug` | - (no hold-out; leaderboard only) | 4.998 | 7.69M (trained) | 1.36 (A100 40 GB) | not recorded here |
 | full_ft_llrd | Full fine-tuning + label smoothing + head at the backbone's rate + layer-wise lr decay 0.75, full 2.4 h budget (18.2 epochs) | `full_ft_llrd` | **76.26** | 100 | 7.69M (trained) | 2.27 (A100 40 GB) | not recorded here |
 | full_ft_llrd at test size 288 | same model, scored at 288 px (no retraining; run 31) | `full_ft_llrd` + `--sizes 288` | **77.89** (77.98 with mirror averaging) | 100 | 7.69M (trained) | - | not recorded here |
+| full_ft_ls_headlow | `full_ft_ls` + head at the backbone's rate, full 2.4 h budget (18.18 epochs; run 21) | `full_ft_ls_headlow` | 75.75 (77.43 at 288 px) | 100 | 7.69M (trained) | 2.26 (A100 40 GB) | not recorded here |
 | full_ft_llrd_10ep | `full_ft_llrd` for 10 epochs, the length of the 5% runs (run 32) | `full_ft_llrd_10ep` | 76.06 (77.67 at 288 px) | 100 | 7.69M (trained) | 1.20 | not recorded here |
 | final_full_ft_llrd | final full fine-tuning model: `full_ft_llrd_10ep` recipe on all 45 images per class, no hold-out (run 37) | `final_full_ft_llrd` | - (no hold-out; leaderboard only) | 100 | 7.69M (trained) | 1.26 (A100 40 GB) | not recorded here |
 | tune_ls_lr1e4_init43 | `tune_ls_lr1e4` + head init from 43 images per class (run 18) | `tune_ls_lr1e4_init43` | 71.99 | 4.998 | 7.69M (trained) | 1.27 | not recorded here |
@@ -611,6 +612,21 @@ Hold-out top-1 by epoch:
 - **Submission:** `python -m common.submit <run folder> --team XX --split test --size 288`. `--tta flip` added +0.30 at 288 px in run 32, at twice the inference cost.
 - **Log:** `results/final_full_ft_llrd/log.jsonl`, `summary.json`.
 
+### full_ft_ls_headlow, run 21 (lilian, for Nicole)
+
+- **Why:** `full_ft_llrd` (run 27, 76.26%) changed the head's rate and added layer-wise decay at once. This run has the slower head only, on the same card and budget, so the two separate.
+- **Setup:** `configs/full_ft_ls_headlow.yaml`: full fine-tuning, lr 3e-5, head at the same 3e-5, label smoothing 0.1, weight decay 0.05, auto length. Then `common.evaluate --sizes 224 288`.
+- **Result:** hold-out top-1 **75.75%** at 224 px (top-5 90.69, loss 1.445), 76.16% with mirror averaging; **77.43%** at 288 px (+1.68; top-5 91.77, loss 1.346), 77.57% with mirror averaging. Latency 6.9 / 7.2 ms.
+- **Per epoch (hold-out top-1):** 64.84, 68.97, 71.27, 72.11, 72.98, 73.51, 73.92, 73.53, 74.20, 74.44, 74.83, 75.13, 75.34, 75.43, 75.61, 75.66, 75.70, 75.74, 75.76 (18.18, final). Hold-out loss lowest at epoch 5 (1.313), 1.445 at the end.
+- **Efficiency:** 85,798,656 trainable params (100%). Train 2.261 h on an A100 40 GB = 1.884 h in 48 GB-equivalent. 61,076 steps, 18.18 epochs. Peak VRAM 9.6 GiB.
+- **Interpretation:**
+  - **Layer-wise decay at equal length (run 27 against this run):** +0.51 at 224 px and +0.46 at 288 px, about the 0.45 sampling error quoted for two separate runs. A small gain at best in final accuracy.
+  - **Its clear benefit is speed:** after epoch 1 run 27 is 2.48 ahead (67.32 against 64.84), after epoch 2 2.33. `full_ft_llrd_10ep` reaches 76.06% in 10 epochs, above this run's 75.75% in 18.18, so layer-wise decay gives the same accuracy in about half the budget. That is what freed the budget for runs 38 and 39.
+  - **The slower head (this run against `full_ft_ls`, 73.98%):** +1.77, but `full_ft_ls` trained 9.37 epochs on an 80 GB card, so length is mixed in. No equal-length run of the slower head without layer-wise decay exists.
+  - This corrects the reading in run 27, where layer-wise decay and the slower head were credited together with at least about +1.2 at equal epochs.
+- **Decision:** keep `full_ft_llrd_10ep` as the full fine-tuning recipe: it is equal in accuracy and costs half the budget.
+- **Log:** `results/full_ft_ls_headlow/log.jsonl`, `summary.json`.
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -639,7 +655,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 18 | `tune_ls_lr1e4_init43` | | run 11 + head start from all 43 images per class (about 1.25 h) | Nicole | done: 71.99%, -1.03 against run 11 (same loss as run 6); keep the 10-image head |
 | 19 | `tune_head_lr_quarter` | | run 15 with the head at a quarter of the adapters' rate (head 2.5e-5) | Nicole | done: 74.02%, level with run 15 |
 | 20 | `tune_head_lr_half_init43` | | run 15 + head start from all 43 images per class (about 1.25 h) | lilian (for Nicole) | claimed 30 Oct |
-| 21 | `full_ft_ls_headlow` | | run 12 with the head at the backbone's rate (3e-5 instead of 3e-4), fair comparison | lilian (for Nicole) | claimed 30 Oct |
+| 21 | `full_ft_ls_headlow` | | run 12 with the head at the backbone's rate (3e-5 instead of 3e-4), fair comparison | lilian (for Nicole) | done: 75.75% (77.43% at 288 px, A100 40 GB, 18.18 epochs); layer-wise decay adds only about 0.5 at this length (run 27) |
 | 22 | no training | | test-size check on a finished run: `python -m common.evaluate <run folder> --sizes 224 256 288` (minutes; see section 5) | lilian | done 22 Oct on `imp_trivialaug`: 288 px gives 75.99% (+1.71), 76.23% with mirror averaging; 288 is the optimum (320: +1.00, 352: -0.22). Follow-up: the same check on `full_ft_ls` |
 | 23 | `imp_droppath` | | run 15 + stochastic depth 0.1 | lilian | done 21 Oct: 74.09%, tie with run 15 (lower hold-out loss) |
 | 24 | `imp_ema` | | run 15 + weight EMA 0.9998 (hold-out and final.pt use the averaged weights) | lilian | done 21 Oct: 74.19%, tie with run 15 (ahead only mid-training) |
