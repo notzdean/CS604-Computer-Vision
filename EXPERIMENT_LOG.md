@@ -627,8 +627,8 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 17 | `abl_linear_probe` | | only the head is trained (backbone frozen, no adapters); compare with run 11 to see what the adapters add | lilian | done 21 Oct: 62.62% (re-run; the first attempt stopped at 6.36 epochs on a slow session and was discarded) |
 | 18 | `tune_ls_lr1e4_init43` | | run 11 + head start from all 43 images per class (about 1.25 h) | Nicole | done: 71.99%, -1.03 against run 11 (same loss as run 6); keep the 10-image head |
 | 19 | `tune_head_lr_quarter` | | run 15 with the head at a quarter of the adapters' rate (head 2.5e-5) | Nicole | done: 74.02%, level with run 15 |
-| 20 | `tune_head_lr_half_init43` | | run 15 + head start from all 43 images per class (about 1.25 h) | open (Nicole) | |
-| 21 | `full_ft_ls_headlow` | | run 12 with the head at the backbone's rate (3e-5 instead of 3e-4), fair comparison | open (friend) | |
+| 20 | `tune_head_lr_half_init43` | | run 15 + head start from all 43 images per class (about 1.25 h) | lilian (for Nicole) | claimed 30 Oct |
+| 21 | `full_ft_ls_headlow` | | run 12 with the head at the backbone's rate (3e-5 instead of 3e-4), fair comparison | lilian (for Nicole) | claimed 30 Oct |
 | 22 | no training | | test-size check on a finished run: `python -m common.evaluate <run folder> --sizes 224 256 288` (minutes; see section 5) | lilian | done 22 Oct on `imp_trivialaug`: 288 px gives 75.99% (+1.71), 76.23% with mirror averaging; 288 is the optimum (320: +1.00, 352: -0.22). Follow-up: the same check on `full_ft_ls` |
 | 23 | `imp_droppath` | | run 15 + stochastic depth 0.1 | lilian | done 21 Oct: 74.09%, tie with run 15 (lower hold-out loss) |
 | 24 | `imp_ema` | | run 15 + weight EMA 0.9998 (hold-out and final.pt use the averaged weights) | lilian | done 21 Oct: 74.19%, tie with run 15 (ahead only mid-training) |
@@ -641,9 +641,9 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 31 | no training | | fair evaluation of full fine-tuning: `python -m common.evaluate <full_ft_llrd folder> --sizes 224 288` (single pass and mirror averaging at both sizes, like run 22 for the 5% model) | lilian | done 30 Oct: 77.89% at 288 px (+1.63), 77.98% with mirror averaging |
 | 32 | `full_ft_llrd_10ep` | | equal length: `full_ft_llrd` for 10 epochs (33,590 steps), the length of the 5% runs. A100 40 GB preferred (about 1.2 h); then `--sizes 224 288` | lilian | done 30 Oct (A100 80 GB, 1.20 h): 76.06%, 77.67% at 288 px; only -0.2 against 18.2 epochs, so the gap to the 5% track (1.7) is the method |
 | 33 | `imp_trivialaug_fullbudget` | | equal budget: `imp_trivialaug` filling the 2.4 h budget of an A100 40 GB (about 16 epochs), like `full_ft_llrd`. A100 40 GB only; then `--sizes 224 288` | Nicole | done 30 Oct: 74.18%, 75.99% at 288 px (16.9 epochs): no gain over 10 epochs; the gap to full fine-tuning at equal budget is 1.9 to 2.1 |
-| 34 | `imp_trivialaug_llrd` | | run 26 + layer-wise lr decay 0.75 on the adapters (the change that lifted full fine-tuning) | open (Nicole) | |
+| 34 | `imp_trivialaug_llrd` | | run 26 + layer-wise lr decay 0.75 on the adapters (the change that lifted full fine-tuning) | lilian (for Nicole) | claimed 30 Oct |
 | 35 | `imp_head_from_lp` | | run 26 with the head started from the linear probe's trained head (run 17, 62.6%): head first, then adapters (LP-FT). Needs `abl_linear_probe/final.pt` in the runner's runs folder | lilian | done 30 Oct: 70.28% (71.97% at 288 px), 4 points below run 26: the pre-fitted head overfits; keep the class-average head |
-| 36 | `imp_adaptformer_only` | | run 26 settings with AdaptFormer only (b=232): the simpler, faster design | open (Nicole) | |
+| 36 | `imp_adaptformer_only` | | run 26 settings with AdaptFormer only (b=232): the simpler, faster design | lilian (for Nicole) | claimed 30 Oct |
 | 37 | `final_full_ft_llrd` | | final full fine-tuning model: run 32's recipe (`full_ft_llrd_10ep`, 76.06%, 77.67% at 288 px) on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only. A100 40 GB preferred (about 1.2 h); submit at `--size 288` | lilian | claimed 30 Oct |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
