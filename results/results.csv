@@ -24,3 +24,4 @@ imp_mixup,lilian,lora_adaptformer,73.97,90.42,35.7,4287936,4.998,7690000,11.9,1.
 imp_trivialaug,lilian,lora_adaptformer,74.28,90.47,35.7,4287936,4.998,7690000,11.8,1.429,NVIDIA A100-SXM4-40GB,40,1.191,7.3,10.0,33590,0.0001,128,,tune_head_lr_half + TrivialAugment + random erasing 0.25
 final_5pct_trivialaug,lilian,lora_adaptformer,,,,4287936,4.998,7690000,11.8,1.364,NVIDIA A100-SXM4-40GB,40,1.136,7.3,10.0,35150,0.0001,128,,"final 5% model: imp_trivialaug on all 45 images per class (no hold-out, A100 40 GB)"
 full_ft_llrd,lilian,full_ft,76.26,90.91,35.7,85798656,100.0,7690000,6.9,2.274,NVIDIA A100-SXM4-40GB,40,1.895,2.5,18.2,61131,0.0001,128,,"full_ft_ls_headlow + layer-wise lr decay 0.75 (top block 7.5e-5, head 3e-5)"
+full_ft_llrd_10ep,lilian,full_ft,76.06,91.33,35.7,85798656,100.0,7690000,7.1,1.203,NVIDIA A100-SXM4-80GB,80,2.006,9.6,10.0,33590,0.0001,128,,full_ft_llrd for 10 epochs (equal-length comparison with the 5% runs)
