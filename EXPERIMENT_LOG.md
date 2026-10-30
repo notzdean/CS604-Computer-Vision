@@ -656,6 +656,8 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 35 | `imp_head_from_lp` | | run 26 with the head started from the linear probe's trained head (run 17, 62.6%): head first, then adapters (LP-FT). Needs `abl_linear_probe/final.pt` in the runner's runs folder | lilian | done 30 Oct: 70.28% (71.97% at 288 px), 4 points below run 26: the pre-fitted head overfits; keep the class-average head |
 | 36 | `imp_adaptformer_only` | | run 26 settings with AdaptFormer only (b=232): the simpler, faster design | lilian (for Nicole) | claimed 30 Oct |
 | 37 | `final_full_ft_llrd` | | final full fine-tuning model: run 32's recipe (`full_ft_llrd_10ep`, 76.06%, 77.67% at 288 px) on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only. A100 40 GB preferred (about 1.2 h); submit at `--size 288` | lilian | done: trained cleanly (1.26 h, 10 epochs); submit at `--size 288` |
+| 38 | no training | | ensemble check: `python -m common.ensemble <full_ft_llrd folder> <full_ft_llrd_10ep folder> --size 288`. Same seed and recipe, so the gain may understate two separately seeded models. If it clears about 1 point, train a second seed (`EXTRA = "seed=1"`, new `RUN`) | open (lilian) | |
+| 39 | `full_ft_llrd_288` | | run 32 trained at 288 px (`train_size: 288`), the unused half of the budget paying for more pixels. A100 40 GB only (at most about 2 h); then `--sizes 288 320 352`; compare with run 32 at its best test size (77.67%) | open (lilian) | |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
 
@@ -734,7 +736,7 @@ Run 22 needs a finished run's folder with `final.pt`: the best one (run 15) is o
 
 Code: the new settings (`drop_path_rate`, `ema_decay`, `mixup_alpha`, `cutmix_alpha`, `auto_augment`, `re_prob`, `layer_decay`, and `--sizes` / `--size` in `common/evaluate.py` and `common/submit.py`) are opt-in. Their defaults reproduce the old behaviour exactly (checked on CPU on 21 Oct: the same parameter groups and the same outputs at 224 px), so earlier results and configs are unaffected. They live in `common/`, so the team agrees before the branch is merged.
 
-Not planned: other adapter types (DoRA, SSF, VPT, FacT; expected under 0.5 points), a larger training size (about 3.5 times the cost per step at 384 px), pseudo-labels on val or test (forbidden), another checkpoint (ruled out).
+Not planned: other adapter types (DoRA, SSF, VPT, FacT; expected under 0.5 points), pseudo-labels on val or test (forbidden), another checkpoint (ruled out).
 
 ## Planned ablations (one change per run)
 

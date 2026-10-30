@@ -45,13 +45,13 @@ def split_holdout(rows, per_class=HOLDOUT_PER_CLASS, seed=SPLIT_SEED):
     return train, hold
 
 
-def train_tf(scale_min=0.35, auto_augment=None, re_prob=0.0):
+def train_tf(scale_min=0.35, auto_augment=None, re_prob=0.0, size=224):
     """auto_augment: None | "trivial" (TrivialAugmentWide) | "randaug" (RandAugment, 2 ops, magnitude 9).
-    re_prob: probability of random erasing. Both run on the 224 px crop, so they cost the loader little."""
+    re_prob: probability of random erasing. Both run on the crop, so they cost the loader little. size: training crop in px."""
     aug = {None: [], "trivial": [T.TrivialAugmentWide(interpolation=BICUBIC)],
            "randaug": [T.RandAugment(num_ops=2, magnitude=9, interpolation=BICUBIC)]}[auto_augment]
     return T.Compose([
-        T.RandomResizedCrop(224, scale=(scale_min, 1.0), interpolation=BICUBIC),
+        T.RandomResizedCrop(size, scale=(scale_min, 1.0), interpolation=BICUBIC),
         T.RandomHorizontalFlip(),
         *aug,
         T.ToTensor(), T.Normalize(MEAN, STD),

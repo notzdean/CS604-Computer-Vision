@@ -1,6 +1,6 @@
 """Score a finished run on the hold-out again, without and with mirror averaging. Nothing is trained.
 
-    python -m common.evaluate runs/<name>                        # at 224 px, as in training
+    python -m common.evaluate runs/<name>                        # at the training size
     python -m common.evaluate runs/<name> --sizes 224 256 288    # also at larger test sizes (FixRes check)
 
 Loads <run>/config.yaml + <run>/final.pt and prints hold-out top-1 / top-5 for a single pass and for mirror
@@ -24,15 +24,17 @@ from common.train import evaluate, pick_amp
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("run_dir")
-    ap.add_argument("--sizes", type=int, nargs="+", default=[224], help="test image sizes (multiples of 16)")
+    ap.add_argument("--sizes", type=int, nargs="+", help="test image sizes, multiples of 16 (default: the training size)")
     a = ap.parse_args()
 
     cfg = yaml.safe_load(open(f"{a.run_dir}/config.yaml"))
     if not cfg["holdout_per_class"]:
         sys.exit("this run trained on every labelled image (holdout_per_class=0), so there is no hold-out to score it on")
-    if any(s % 16 for s in a.sizes):
+    train_size = cfg.get("train_size", 224)
+    sizes = a.sizes or [train_size]
+    if any(s % 16 for s in sizes):
         sys.exit("sizes must be multiples of 16 (the patch size)")
-    cfg["dynamic_img_size"] = any(s != 224 for s in a.sizes)
+    cfg["dynamic_img_size"] = any(s != train_size for s in sizes)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     amp = pick_amp(cfg["precision"], device)
     torch.manual_seed(cfg.get("seed", 0))      # same init as in training for anything that is not pre-trained or saved
@@ -46,7 +48,7 @@ def main():
     _, hold = data.split_holdout(rows, cfg["holdout_per_class"])
     print(f"[{cfg['name']}] hold-out images: {len(hold)}")
     base = None
-    for s in a.sizes:
+    for s in sizes:
         plain = evaluate(model, hold, cfg, device, amp, size=s)
         mirror = evaluate(model, hold, cfg, device, amp, flip=True, size=s)
         lat = metrics.latency_ms(model, device, amp, size=s)

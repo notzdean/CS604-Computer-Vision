@@ -37,7 +37,7 @@ def calibrate_scale(feats, labels, mu, counts, grid=SCALE_GRID, n=20000, chunk=1
 
 
 @torch.no_grad()
-def ncm_head_init(model, train_rows, device, per_class=10, batch_size=256, workers=None, amp=None, scale="auto"):
+def ncm_head_init(model, train_rows, device, per_class=10, batch_size=256, workers=None, amp=None, scale="auto", size=224):
     by_class = {}
     for p, c in train_rows:
         if len(by_class.setdefault(c, [])) < per_class:
@@ -47,7 +47,7 @@ def ncm_head_init(model, train_rows, device, per_class=10, batch_size=256, worke
     model.eval().to(device)
     dim, n_cls = model.head.in_features, model.head.out_features
     feats, labels = [], []
-    for x, y in make_loader(rows, eval_tf(), batch_size, workers=workers):
+    for x, y in make_loader(rows, eval_tf(size), batch_size, workers=workers):
         with torch.autocast(device.type, dtype=amp, enabled=amp is not None):
             f = model.forward_head(model.forward_features(x.to(device, non_blocking=True)), pre_logits=True)
         # clone: f is an fp32 view of the CLS token, keeping it would keep the whole (B, 197, 768) batch alive

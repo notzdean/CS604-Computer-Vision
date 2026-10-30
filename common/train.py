@@ -37,6 +37,7 @@ DEFAULTS = dict(
     epochs=None, budget_hours="auto", max_train_steps=None,   # epochs=null -> as many as fit in the budget
     batch_size=128, lr=1e-4, head_lr_mult=10.0, weight_decay=0.05, warmup_steps=200, min_lr_frac=0.01,
     grad_clip=1.0, label_smoothing=0.0, scale_min=0.35,
+    train_size=224,           # training image size in px (multiple of 16); per-epoch evals and latency use it too
     drop_path_rate=0.0, layer_decay=None, ema_decay=None,                  # opt-in regularisers (see docstring)
     auto_augment=None, re_prob=0.0, mixup_alpha=0.0, cutmix_alpha=0.0, mixup_prob=1.0,
     head_init=True, head_init_per_class=10, head_init_scale="auto", eval_at_start=True,
@@ -75,7 +76,7 @@ def pick_amp(precision, device):
 @torch.no_grad()
 def evaluate(model, rows, cfg, device, amp, flip=False, size=224):
     """flip=True: mirror averaging, the class probabilities of each image and of its mirror image are averaged.
-    size != 224 needs a model built with dynamic_img_size (see common/evaluate.py)."""
+    size != train_size needs a model built with dynamic_img_size (see common/evaluate.py)."""
     model.eval()
     n = c1 = c5 = 0
     loss_sum = 0.0
@@ -172,6 +173,9 @@ def save_curve(out):
 
 def main(argv):
     cfg = load_cfg(argv)
+    if cfg["train_size"] % 16:
+        sys.exit("train_size must be a multiple of 16 (the patch size)")
+    size = cfg["train_size"]
     torch.manual_seed(cfg["seed"])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     amp = pick_amp(cfg["precision"], device)
@@ -213,7 +217,7 @@ def main(argv):
             print(f"head initialised from {src}")
     elif cfg["head_init"] and not ck:
         init = lambda m: ncm_head_init(m, train_rows, device, cfg["head_init_per_class"], workers=workers, amp=amp,
-                                       scale=cfg["head_init_scale"])
+                                       scale=cfg["head_init_scale"], size=size)
     model = build_model(cfg, init_head=init).to(device)
     n_train, n_head, n_base = metrics.count_params(model)
     print(f"trainable adapter params: {n_train:,} = {100 * n_train / n_base:.2f}% of backbone ({n_base:,}); "
@@ -239,7 +243,7 @@ def main(argv):
     if cfg["ema_decay"]:                     # EMA of the trainable weights only (the frozen backbone never changes)
         ema = [t.to(device) for t in ck["ema"]] if ck and ck.get("ema") else [p.detach().clone() for p in trainable]
     if not ck and cfg["head_init"] and cfg["eval_at_start"] and hold_rows:
-        zero_shot = evaluate(model, hold_rows, cfg, device, amp)
+        zero_shot = evaluate(model, hold_rows, cfg, device, amp, size=size)
         print(f"zero-shot (head init only) hold-out top-1: {zero_shot['top1']:.2f}%")
     budget_h = 96 / gpu_gb if cfg["budget_hours"] == "auto" and gpu_gb else (
         None if cfg["budget_hours"] == "auto" else cfg["budget_hours"])
@@ -262,7 +266,7 @@ def main(argv):
     def emit(rec):
         log.write(json.dumps(rec) + "\n"); log.flush()
 
-    ds = data.ImageDS(train_rows, data.train_tf(cfg["scale_min"], cfg["auto_augment"], cfg["re_prob"]))
+    ds = data.ImageDS(train_rows, data.train_tf(cfg["scale_min"], cfg["auto_augment"], cfg["re_prob"], size))
     mixer = None
     if cfg["mixup_alpha"] or cfg["cutmix_alpha"]:   # soft targets; label smoothing is applied inside the mixer
         from timm.data import Mixup
@@ -326,7 +330,7 @@ def main(argv):
         if not done and (epoch + 1) % cfg["eval_every_epochs"] == 0:
             if hold_rows:
                 with swapped_in(trainable, ema):
-                    ev = evaluate(model, hold_rows, cfg, device, amp)
+                    ev = evaluate(model, hold_rows, cfg, device, amp, size=size)
                 emit(dict(kind="eval", step=step, epoch=step / spe, **ev))
                 print(f"== epoch {epoch + 1}: hold-out top-1 {ev['top1']:.2f}%  top-5 {ev['top5']:.2f}%  loss {ev['loss']:.3f}")
             save_ckpt(latest)
@@ -336,11 +340,11 @@ def main(argv):
         with torch.no_grad():
             for p, e in zip(trainable, ema):
                 p.copy_(e)
-    ev = evaluate(model, hold_rows, cfg, device, amp) if hold_rows else None
+    ev = evaluate(model, hold_rows, cfg, device, amp, size=size) if hold_rows else None
     if ev:
         emit(dict(kind="eval", step=step, epoch=step / spe, **ev))
     peak = torch.cuda.max_memory_allocated() / 2 ** 30 if device.type == "cuda" else 0.0
-    lat = metrics.latency_ms(model, device, amp)
+    lat = metrics.latency_ms(model, device, amp, size=size)
     atomic_save(trainable_state(model), f"{out}/final.pt")
     save_ckpt(latest)
     row = dict(name=cfg["name"], who=cfg["who"], method=cfg["method"], holdout_top1=round(ev["top1"], 2) if ev else "",

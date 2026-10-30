@@ -1,0 +1,20 @@
+# Higher training resolution: full_ft_llrd_10ep (76.06%, 77.67% tested at 288 px) with ONE change: train at 288 px.
+# Why: testing at 288 px gains 1.6 to 1.8 points without retraining, and fine-grained classes depend on small details.
+# Runs 32 and 33 showed that epochs beyond 10 add about 0.2 points, so half the budget is free to pay for more pixels.
+# 324 patches instead of 196 = at most about 1.65 times the time per image, so 10 epochs take at most about 2 h.
+# GPU: A100 40 GB only (budget 2.4 h). On an 80 GB card (budget 1.2 h) it would be stopped early.
+# Per-epoch evals use 288 px. After training, compare test sizes: python -m common.evaluate <run> --sizes 288 320 352
+name: full_ft_llrd_288
+method: full_ft
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.3
+layer_decay: 0.75
+weight_decay: 0.05
+label_smoothing: 0.1
+head_init: true
+train_size: 288
+ckpt_every_steps: 1000000
+notes: "full_ft_llrd_10ep trained at 288 px"

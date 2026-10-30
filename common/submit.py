@@ -6,7 +6,7 @@ Loads <run>/config.yaml + <run>/final.pt, predicts every image of the split, wri
 <run>/<split>_team_XX.txt ("<image_path> <class_id>" per line), validates it, and zips it.
 --tta flip = mirror averaging: each image and its mirror image are predicted and the probabilities averaged.
 It needs two forward passes per image, so the inference latency to report is twice the single-pass one.
---size = test image size (default 224); pick it with `python -m common.evaluate <run> --sizes ...` first.
+--size = test image size (default: the training size); pick it with `python -m common.evaluate <run> --sizes ...` first.
 """
 import argparse
 import os
@@ -52,13 +52,14 @@ def main():
     ap.add_argument("--team", required=True, help="team number, e.g. 05 -> val_team_05.txt")
     ap.add_argument("--split", default="val", choices=["val", "test"])
     ap.add_argument("--tta", default="none", choices=["none", "flip"], help="flip = mirror averaging (2 forward passes)")
-    ap.add_argument("--size", type=int, default=224, help="test image size, a multiple of 16 (default 224)")
+    ap.add_argument("--size", type=int, help="test image size, a multiple of 16 (default: the training size)")
     a = ap.parse_args()
-    if a.size % 16:
-        ap.error("--size must be a multiple of 16 (the patch size)")
-
     cfg = yaml.safe_load(open(f"{a.run_dir}/config.yaml"))
-    cfg["dynamic_img_size"] = a.size != 224
+    train_size = cfg.get("train_size", 224)
+    size = a.size or train_size
+    if size % 16:
+        ap.error("--size must be a multiple of 16 (the patch size)")
+    cfg["dynamic_img_size"] = size != train_size
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     amp = pick_amp(cfg["precision"], device)
     torch.manual_seed(cfg.get("seed", 0))      # same init as in training for anything that is not pre-trained or saved
@@ -67,7 +68,7 @@ def main():
     assert not unexpected, unexpected
 
     paths = data.read_paths(a.split)
-    idx, prob = predict(model, paths, device, amp, workers=cfg.get("num_workers"), flip=a.tta == "flip", size=a.size)
+    idx, prob = predict(model, paths, device, amp, workers=cfg.get("num_workers"), flip=a.tta == "flip", size=size)
     lines = [f"{p} {c}" for p, c in zip(paths, idx[:, 0].tolist())]
     check(lines, paths, cfg["num_classes"])
 
@@ -79,7 +80,7 @@ def main():
         z.write(txt, arcname=name)
     np.savez_compressed(os.path.join(a.run_dir, f"{a.split}_top5.npz"), idx=idx.astype(np.int16), prob=prob.astype(np.float16))
     tta = " with mirror averaging (report twice the single-pass latency)" if a.tta == "flip" else ""
-    tta += f" at {a.size} px (report the latency at that size)" if a.size != 224 else ""
+    tta += f" at {size} px (report the latency at that size)" if size != 224 else ""
     print(f"wrote and validated {txt} ({len(lines)} lines) and {txt[:-4]}.zip{tta} - upload the zip to CodaBench")
 
 

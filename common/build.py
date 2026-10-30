@@ -8,7 +8,9 @@ def build_model(cfg, init_head=None):
     """init_head(model) runs BEFORE the method wraps the model, so PEFT wrappers copy the initialised head."""
     from methods import REGISTRY
     extra = dict(drop_path_rate=cfg.get("drop_path_rate") or 0.0)    # stochastic depth; 0 = timm's default
-    if cfg.get("dynamic_img_size"):          # set by evaluate / submit to score at a size other than 224
+    if cfg.get("train_size", 224) != 224:    # position embeddings are resampled to this size when the weights load
+        extra["img_size"] = cfg["train_size"]
+    if cfg.get("dynamic_img_size"):          # set by evaluate / submit to score at a size other than train_size
         extra["dynamic_img_size"] = True     # position embeddings are interpolated to the input size
     model = timm.create_model(cfg.get("base_model", BASE_MODEL), pretrained=cfg.get("pretrained", True),
                               num_classes=cfg["num_classes"], **extra)
