@@ -1,7 +1,7 @@
 # Final full fine-tuning model (queue run 40): full_ft_llrd_288 (79.69% hold-out, best run of either track) trained on
 # ALL 45 images per class (holdout_per_class 0): 4.7% more training data. Replaces final_full_ft_llrd (run 37).
 # No hold-out: the run cannot be scored locally (hold-out columns stay empty); it is judged on the leaderboard only.
-# Submit at the training size, the default: python -m common.submit <run> --team XX --split test
+# Submit at the best test size of run 39 (352 px so far, 80.45%): python -m common.submit <run> --team XX --split test --size 352
 # GPU: A100 40 GB only (about 2.0 h of 2.4 h: 35,150 steps at run 39's 635 img/s). On an 80 GB card it would be stopped early.
 # Checkpoints are the whole model (about 1.1 GB), so they are only saved once per epoch.
 name: final_full_ft_llrd_288
