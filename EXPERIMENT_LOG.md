@@ -41,6 +41,7 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | full_ft_llrd | Full fine-tuning + label smoothing + head at the backbone's rate + layer-wise lr decay 0.75, full 2.4 h budget (18.2 epochs) | `full_ft_llrd` | **76.26** | 100 | 7.69M (trained) | 2.27 (A100 40 GB) | not recorded here |
 | full_ft_llrd at test size 288 | same model, scored at 288 px (no retraining; run 31) | `full_ft_llrd` + `--sizes 288` | **77.89** (77.98 with mirror averaging) | 100 | 7.69M (trained) | - | not recorded here |
 | full_ft_llrd_10ep | `full_ft_llrd` for 10 epochs, the length of the 5% runs (run 32) | `full_ft_llrd_10ep` | 76.06 (77.67 at 288 px) | 100 | 7.69M (trained) | 1.20 | not recorded here |
+| tune_ls_lr1e4_init43 | `tune_ls_lr1e4` + head init from 43 images per class (run 18) | `tune_ls_lr1e4_init43` | 71.99 | 4.998 | 7.69M (trained) | 1.27 | not recorded here |
 | imp_trivialaug_fullbudget | `imp_trivialaug` filling the whole 2.4 h budget (16.9 epochs; run 33) | `imp_trivialaug_fullbudget` | 74.18 (75.99 at 288 px) | 4.998 | 7.69M (trained) | 2.36 (A100 40 GB) | not recorded here |
 | imp_head_from_lp | `imp_trivialaug` with the head started from the linear probe's trained head (run 35) | `imp_head_from_lp` | 70.28 (71.97 at 288 px) | 4.998 | 7.69M (trained) | 1.38 (A100 40 GB) | not recorded here |
 
@@ -585,6 +586,20 @@ Hold-out top-1 by epoch:
 - **Decision:** keep the class-average head (10 images per class). Report as a negative ablation on initialisation (the brief asks about head initialisation).
 - **Log:** `results/imp_head_from_lp/log.jsonl`, `summary.json`.
 
+### tune_ls_lr1e4_init43, run 18 (Nicole; recorded 30 Oct 2026)
+
+- **Why:** the first test of the 43-image head start (`tune_head_init`, -1.07) used the old recipe (lr 3e-4, no label smoothing). This repeats it on the better recipe, in case the higher learning rate was what hurt.
+- **Setup:** `configs/tune_ls_lr1e4_init43.yaml`: `tune_ls_lr1e4` (label smoothing 0.1, lr 1e-4, head x1.0, 10 epochs, 73.02%) with one change, `head_init_per_class: 43` (head from the mean of all 43 training images per class instead of 10). Zero-shot 43.30% (35.70% with 10 images).
+- **Result:** hold-out top-1 **71.99%** (-1.03 against `tune_ls_lr1e4`), top-5 88.61 (-0.72), hold-out loss 1.466 (against 1.420).
+- **Per epoch** (`tune_ls_lr1e4` in brackets): 66.63 (66.95), 69.61 (70.19), 70.77 (71.39), 71.26 (72.10), 71.74 (72.24), 71.71 (72.39), 71.67 (72.70), 72.00 (72.95), 71.87 (73.05), 71.99 (73.02). Behind at every epoch, including the first, despite starting 7.6 points higher; flat from epoch 5 on (+0.25), against +0.78 for the baseline.
+- **Efficiency:** 4,287,936 adapter params (4.998%), head 7.69M. Latency 11.5 ms at 224 px. Train 1.267 h on an A100 80 GB = 2.111 h in 48 GB-equivalent (106% of the budget, inside the +-10% tolerance; the extra feature pass for the head adds about 5 minutes). Peak VRAM 7.3 GiB.
+- **Interpretation:**
+  - The same loss as on the old recipe (-1.03 here, -1.07 for `tune_head_init`), so it does not depend on the learning rate or label smoothing.
+  - Same mechanism as run 35, in a milder form: the class means of all 43 training images include the very images the model then trains on, so the head starts partly fitted to the training set. The higher zero-shot does not carry through, and the hold-out loss ends higher. A head from 10 images per class is a weaker but less biased start, and leaves more for the adapters to learn.
+  - Three runs now point the same way: 43-image head (-1.07, -1.03) and linear-probe head (-4.00, run 35). **The better the head fits the training images at the start, the worse the 5% design ends.**
+- **Decision:** keep `head_init_per_class: 10`. Run 20 (`tune_head_lr_half_init43`, the same change on run 15) is very likely to lose too and can be dropped.
+- **Log:** `results/tune_ls_lr1e4_init43/log.jsonl`, `summary.json`.
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -610,7 +625,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 15 | `tune_head_lr_half` | | run 11 with the head at half the adapters' learning rate (head 5e-5) | Ryan | done 18 Oct: 74.14%, best 5% run so far |
 | 16 | `tune_head_lr_double` | | run 11 with the head at twice the adapters' learning rate (head 2e-4) | Ryan | done 18 Oct: 71.75%, clearly worse |
 | 17 | `abl_linear_probe` | | only the head is trained (backbone frozen, no adapters); compare with run 11 to see what the adapters add | lilian | done 21 Oct: 62.62% (re-run; the first attempt stopped at 6.36 epochs on a slow session and was discarded) |
-| 18 | `tune_ls_lr1e4_init43` | | run 11 + head start from all 43 images per class (about 1.25 h) | Nicole | running 18 Oct |
+| 18 | `tune_ls_lr1e4_init43` | | run 11 + head start from all 43 images per class (about 1.25 h) | Nicole | done: 71.99%, -1.03 against run 11 (same loss as run 6); keep the 10-image head |
 | 19 | `tune_head_lr_quarter` | | run 15 with the head at a quarter of the adapters' rate (head 2.5e-5) | Nicole | done: 74.02%, level with run 15 |
 | 20 | `tune_head_lr_half_init43` | | run 15 + head start from all 43 images per class (about 1.25 h) | open (Nicole) | |
 | 21 | `full_ft_ls_headlow` | | run 12 with the head at the backbone's rate (3e-5 instead of 3e-4), fair comparison | open (friend) | |
