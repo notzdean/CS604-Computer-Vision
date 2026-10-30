@@ -53,6 +53,11 @@ One change at a time on `abl_combined` (71.1):
 - Lilian's head-start run is the first clue that the head is the weak point. The better start (zero-shot 43.3% against
   35.7%) leads for two epochs, then falls behind and its hold-out loss rises: a head built from all the training
   images already fits them, so it memorises even sooner.
+- Two later runs confirm it. The same 43-image head start on the tuned recipe (`tune_ls_lr1e4_init43`, Nicole) again
+  loses 1.0 point (72.0 against 73.0). Starting the head from the linear probe's fully trained head
+  (`imp_head_from_lp`, Lilian) loses 4.0 points (70.3 against 74.3): its training loss ends lower but its hold-out loss
+  stays much higher. **The better the head fits the training images at the start, the worse the 5% design ends.**
+  We keep the plain class-average head, built from 10 images per class.
 
 The learning rate also drives the classifier head, and the head has 7.7M parameters, more than all the adapters
 together (4.3M). So the head got its own speed, with the adapters fixed at 1e-4:
@@ -90,39 +95,53 @@ Lilian added four standard tricks on top of the slow head (`tune_head_lr_half`, 
 
 **Lesson:** all tie. At 224 px we reached the ceiling; the slow head already removed most of the over-confidence.
 
+More time does not help either: given the whole compute budget (16.9 epochs instead of 10,
+`imp_trivialaug_fullbudget`, Nicole) the best 5% model scored 74.2, against 74.3. The 5% design has converged by
+epoch 10.
+
 ## Chapter 5: "What about how we test?"
 
 Random training crops make objects look larger than the 224 px centre crop used at test time. Lilian scored the same
 model (`imp_trivialaug`) on slightly larger images, without retraining: 288 px gives 76.0 (+1.7); 320 px +1.0;
 352 px -0.2. Every metric improves together (top-5 +1.0, lower hold-out loss), so it is not a fluke. Mirror averaging
 adds +0.25 more, at twice the inference cost. At batch 1 the latency barely moves (11.4 to 11.7 ms), but each image
-costs about 1.7 times the compute (324 patches instead of 196).
+costs about 1.7 times the compute (324 patches instead of 196). Full fine-tuning gains the same, +1.6 to +1.7, so the
+larger test size does not change the comparison between the tracks.
 
 **Lesson:** a train / test mismatch was costing points. *Open: use the larger test size only if the professor approves.*
 
 ## Ending: "How close is 5% to 100%?"
 
-Lilian gave full fine-tuning the same care (label smoothing, a slower head, and a learning rate that shrinks towards
-the early layers, `full_ft_llrd`):
+Lilian gave full fine-tuning the same care (label smoothing, a slower head, a learning rate that shrinks towards the
+early layers) and then made the comparison fair in two ways: the same number of epochs, and the same compute budget.
 
-| | Best 5% (`imp_trivialaug`) | Full fine-tuning (`full_ft_llrd`) |
+| Hold-out top-1 | Best 5% (`imp_trivialaug`) | Full fine-tuning (`full_ft_llrd_10ep`) | Gap |
+|---|---|---|---|
+| 10 epochs, 224 px | 74.3 | 76.1 | 1.8 |
+| 10 epochs, 288 px | 76.0 | 77.7 | 1.7 |
+| Whole budget (5%: 16.9 epochs; full: 18.2) | 74.2 (288 px: 76.0) | 76.3 (288 px: 77.9) | 2.1 / 1.9 |
+
+| | Best 5% | Full fine-tuning |
 |---|---|---|
-| Hold-out top-1 | 74.3 | 76.3 |
 | Trained share of the backbone | 5% | 100% |
 | Stored per task | 12M parameters | 93.5M parameters |
-| Latency (batch 1) | 11.8 ms | 6.9 ms |
-| Training | 10 epochs, about 55% of the budget | 18.2 epochs, 95% of the budget |
+| Latency (batch 1, 224 px) | 11.8 ms | 7.1 ms |
+| Training, 10 epochs (48 GB-equivalent) | 1.19 h | 2.01 h |
 
-- Keeping the early layers close to the pre-trained weights lets full fine-tuning learn much faster at the start
-  (+3.6 points after epoch 1 against `full_ft_ls`), and it is already 1.2 points ahead at epoch 9.
-- Over-confidence comes back late even here: its hold-out loss is lowest at epoch 5 and then rises while accuracy
-  still climbs.
-- The 5% model reaches about 97% of its accuracy while storing far fewer weights per task, but it is slower at
-  inference because the adapters add layers.
+- **Training length explains almost none of the gap.** Full fine-tuning for 10 epochs loses only 0.2 against 18.2
+  epochs, and the 5% model gains nothing from 16.9 epochs. Both converge early.
+- **The gap of about 2 points is the method.** It holds at equal epochs and at equal budget, at 224 px and at 288 px.
+- **Mirror averaging** adds only +0.1 to +0.3 for twice the inference cost: not worth it.
+- **What the 5% model buys:** about 97.5% of the accuracy, about 40% less training compute, and one small set of
+  adapters per task instead of a full copy of the model. **What it costs:** slower inference (the adapters add layers)
+  and the 2 points.
+- **Likely reason full fine-tuning wins** (our interpretation, not tested): with 450,000 training images the task is
+  not data-poor, and the course's table says "more data: fine-tune"; the brief's expectation that efficient methods
+  win applies when data is small.
 
-*Pending:* the equal-length (`full_ft_llrd_10ep`) and equal-budget (`imp_trivialaug_fullbudget`) runs show how much of
-the 2-point gap is training time rather than method; the test-size check on full fine-tuning compares both tracks at
-their best test size; `full_ft_ls_headlow` would separate the slower head from the layer-wise rate.
+*Still running:* `imp_trivialaug_llrd` (a learning rate that shrinks towards the early layers, applied to the
+adapters) and `imp_adaptformer_only` (the simpler, faster design with the best recipe); a final full fine-tuning model
+on all 45 images per class for Phase 2.
 
 ## Reference points
 
@@ -137,9 +156,10 @@ their best test size; `full_ft_ls_headlow` would separate the slower head from t
 ## Who did what
 
 - **Nicole:** pipeline and baselines, the first LoRA + AdaptFormer design and its 10-epoch run, the later-layers
-  ablation, the learning-rate sweep with label smoothing, the quarter-speed head, full fine-tuning with label smoothing.
+  ablation, the learning-rate sweep with label smoothing, the quarter-speed head, full fine-tuning with label smoothing,
+  the 43-image head start on the tuned recipe, the full-budget run of the best 5% model.
 - **Ryan:** LoRA-only ablation, label smoothing, the learning-rate pair (2e-4 / 5e-4), the half- and double-speed head
   (the best 5% recipe); found and fixed the head-init memory leak on 40 GB GPUs.
-- **Lilian:** AdaptFormer-only ablation, the better head start, the linear probe, the four regulariser runs, the
-  test-size study, full fine-tuning with layer-wise learning rates (the best run), the final 5% model on all
-  45 images; the code for the regularisers, the test-size option and the head-init memory fix.
+- **Lilian:** AdaptFormer-only ablation, the better head start, the linear probe and the head started from it, the
+  four regulariser runs, the test-size study, full fine-tuning with layer-wise learning rates (the best run) and its
+  equal-length and test-size comparisons, the final 5% model on all 45 images; the code for the regularisers, the test-size option and the head-init memory fix.
