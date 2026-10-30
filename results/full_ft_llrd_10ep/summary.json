@@ -1,0 +1,22 @@
+{
+ "name": "full_ft_llrd_10ep",
+ "who": "lilian",
+ "method": "full_ft",
+ "holdout_top1": 76.06,
+ "holdout_top5": 91.33,
+ "zero_shot_top1": 35.7,
+ "trainable_params": 85798656,
+ "trainable_pct": 100.0,
+ "head_params": 7690000,
+ "latency_ms_bs1": 7.1,
+ "train_hours": 1.203,
+ "gpu": "NVIDIA A100-SXM4-80GB",
+ "gpu_gb": 80,
+ "equiv_hours_48gb": 2.006,
+ "peak_vram_gib": 9.6,
+ "epochs": 10.0,
+ "steps": 33590,
+ "lr": 0.0001,
+ "batch_size": 128,
+ "notes": "full_ft_llrd for 10 epochs (equal-length comparison with the 5% runs)"
+}

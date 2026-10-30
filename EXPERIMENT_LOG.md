@@ -39,6 +39,11 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | imp_trivialaug at test size 288 | same model, scored at 288 px (no retraining; run 22) | `imp_trivialaug` + `--sizes 288` | **75.99** (76.23 with mirror averaging) | 4.998 | 7.69M (trained) | - | not recorded here |
 | final_5pct_trivialaug | final 5% model: `imp_trivialaug` recipe on all 45 images per class (no hold-out) | `final_5pct_trivialaug` | - (no hold-out; leaderboard only) | 4.998 | 7.69M (trained) | 1.36 (A100 40 GB) | not recorded here |
 | full_ft_llrd | Full fine-tuning + label smoothing + head at the backbone's rate + layer-wise lr decay 0.75, full 2.4 h budget (18.2 epochs) | `full_ft_llrd` | **76.26** | 100 | 7.69M (trained) | 2.27 (A100 40 GB) | not recorded here |
+| full_ft_llrd at test size 288 | same model, scored at 288 px (no retraining; run 31) | `full_ft_llrd` + `--sizes 288` | **77.89** (77.98 with mirror averaging) | 100 | 7.69M (trained) | - | not recorded here |
+| full_ft_llrd_10ep | `full_ft_llrd` for 10 epochs, the length of the 5% runs (run 32) | `full_ft_llrd_10ep` | 76.06 (77.67 at 288 px) | 100 | 7.69M (trained) | 1.20 | not recorded here |
+| tune_ls_lr1e4_init43 | `tune_ls_lr1e4` + head init from 43 images per class (run 18) | `tune_ls_lr1e4_init43` | 71.99 | 4.998 | 7.69M (trained) | 1.27 | not recorded here |
+| imp_trivialaug_fullbudget | `imp_trivialaug` filling the whole 2.4 h budget (16.9 epochs; run 33) | `imp_trivialaug_fullbudget` | 74.18 (75.99 at 288 px) | 4.998 | 7.69M (trained) | 2.36 (A100 40 GB) | not recorded here |
+| imp_head_from_lp | `imp_trivialaug` with the head started from the linear probe's trained head (run 35) | `imp_head_from_lp` | 70.28 (71.97 at 288 px) | 4.998 | 7.69M (trained) | 1.38 (A100 40 GB) | not recorded here |
 
 Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
@@ -522,6 +527,79 @@ Hold-out top-1 by epoch:
 - **Next:** (a) the test-size check on this run (`--sizes 224 288`), so both tracks are compared at their best test size; (b) a final full fine-tuning model on all 45 images per class with this recipe (`final_full_ft_llrd`), for the Phase 2 submission of the full fine-tuning track.
 - **Log:** `results/full_ft_llrd/log.jsonl` (the last eval line is repeated, see above), `summary.json` (peak VRAM from the evaluation-only re-run).
 
+### Fair track comparison: test size on full_ft_llrd (run 31) and full_ft_llrd_10ep (run 32) (30 Oct 2026, lilian)
+
+- **Why:** `full_ft_llrd` (76.26%) beat the best 5% run (`imp_trivialaug`, 74.28%) by 1.98 points, but it trained 18.2 epochs against 10 and was only scored at 224 px, while the 5% model gains 1.71 at 288 px (run 22). Run 31 scores it at the same test size; run 32 trains it for the 5% runs' length. Run 33 (`imp_trivialaug_fullbudget`) is the other half: the 5% recipe at the full budget.
+- **Setup:** run 31: no training, `python -m common.evaluate <full_ft_llrd folder> --sizes 224 288`. Run 32: `configs/full_ft_llrd_10ep.yaml`, `full_ft_llrd` with one change, `epochs: 10` (33,590 steps, the same step count and cosine schedule as the 5% runs), then the same evaluation.
+- **Result:**
+
+  | Run | Epochs | Top-1 224 px | Top-5 224 | Loss 224 | Top-1 288 px | Top-5 288 | Loss 288 | 288 px + mirror | Latency 224 / 288 |
+  |---|---|---|---|---|---|---|---|---|---|
+  | `full_ft_llrd` (run 31) | 18.2 | 76.26 | 90.91 | 1.468 | **77.89 (+1.63)** | 91.92 | 1.392 | 77.98 (+0.09) | 7.0 / 7.2 ms |
+  | `full_ft_llrd_10ep` (run 32) | 10 | 76.06 | 91.33 | 1.304 | 77.67 (+1.61) | 92.22 | 1.212 | 77.97 (+0.30) | 6.8 / 7.1 ms |
+  | `imp_trivialaug` (5%, run 22) | 10 | 74.28 | 90.47 | 1.311 | 75.99 (+1.71) | 91.50 | 1.221 | 76.23 (+0.25) | 11.4 / 11.7 ms |
+
+- **Run 32 hold-out top-1 by epoch** (`full_ft_llrd` at the same epoch in brackets): 67.24 (67.32), 71.34 (71.30), 73.61 (73.29), 74.22 (73.68), 75.21 (74.40), 75.55 (74.53), 75.82 (74.68), 76.01 (74.81), 76.02 (75.17), 76.06 (75.40). Hold-out loss lowest at epoch 5 (1.239), 1.304 at the end.
+- **Efficiency (run 32):** 85,798,656 trainable params (100%). Train 1.203 h on an A100 80 GB = 2.006 h in 48 GB-equivalent, 100.3% of the 2 h x 48 GB budget (inside the +-10% tolerance). 10.0 epochs, not stopped early. Peak VRAM 9.6 GiB.
+- **Interpretation:**
+  - Training length explains almost none of the gap: 10 epochs give 76.06 against 76.26 for 18.2 (-0.20), and at 288 px 77.67 against 77.89 (-0.22). The second half of `full_ft_llrd`'s budget was nearly wasted. With the shorter cosine schedule run 32 anneals earlier, so it is ahead of `full_ft_llrd` at every epoch from 3 on.
+  - **At equal epochs full fine-tuning leads the 5% design by 1.78 points at 224 px and 1.68 at 288 px.** The gap is the method, not the training length. (Paired against run 22's 288 px number: same hold-out, same test procedure.)
+  - The test-size gain is the same for both tracks (+1.61 to +1.71), so 288 px helps every model and does not change the comparison.
+  - The shorter run is better calibrated: hold-out loss 1.304 against 1.468 at almost the same top-1. The long run's extra epochs mostly made it more confident on its errors (see run 27).
+  - Mirror averaging adds only +0.09 to +0.30 at 288 px for twice the latency: not worth it for full fine-tuning.
+  - Inference: full fine-tuning is faster (about 7 ms against 11.7 ms at 288 px, batch 1) because the adapters add layers; the 5% model stores 4.3M weights per task instead of 85.8M.
+- **Next:** run 33 (`imp_trivialaug_fullbudget`, A100 40 GB) tests whether the 5% design, given the whole budget, closes any of the 1.7 points. Given run 32, a final full fine-tuning model needs only 10 epochs.
+- **Log:** `results/full_ft_llrd_10ep/log.jsonl`, `summary.json`.
+
+### Fair track comparison, equal budget: imp_trivialaug_fullbudget (run 33) (30 Oct 2026, Nicole)
+
+- **Why:** the other half of the fair comparison. `full_ft_llrd` used the whole 2.4 h budget of an A100 40 GB (18.2 epochs); the best 5% run (`imp_trivialaug`) stopped at 10 epochs, about 55% of it. This run gives the 5% recipe the same budget.
+- **Setup:** `configs/imp_trivialaug_fullbudget.yaml`: `imp_trivialaug` with one change, `epochs: null` (auto length, fill the budget). A100 40 GB, so the same 2.4 h budget as `full_ft_llrd`. Then `common.evaluate --sizes 224 288`.
+- **Result:** hold-out top-1 **74.18%** at 224 px (top-5 90.38, loss 1.333), 74.47% with mirror averaging; **75.99%** at 288 px (+1.81; top-5 91.42, loss 1.244), 76.27% with mirror averaging. Latency 11.6 / 11.8 ms (224 / 288 px).
+- **Per epoch (hold-out top-1):** 64.90, 69.20, 71.40, 72.55, 73.19, 73.43, 73.47, 73.68, 73.97, 74.16, 74.14, 74.10, 74.20, 74.31, 74.22, 74.19, 74.18 (16.89, final). Hold-out loss lowest at epoch 7 (1.308), 1.333 at the end.
+- **Efficiency:** 4,287,936 adapter params (4.998%), head 7.69M. Train 2.360 h on an A100 40 GB = 1.967 h in 48 GB-equivalent (98% of the budget). 56,740 steps, 16.89 epochs. Peak VRAM 7.3 GiB.
+- **Interpretation:**
+  - **The extra budget buys nothing:** 74.18 against 74.28 for 10 epochs at 224 px, and 75.99 against 75.99 at 288 px. The curve is flat from epoch 10 on (74.10 to 74.31). The 5% design has converged by 10 epochs; this matches `imp_mixup` (15 epochs, no gain) and `lora_adaptformer` (7.78 epochs, no worse than 10).
+  - Both tracks are length-insensitive (full fine-tuning: -0.2 from 18.2 to 10 epochs, run 32), so the gap between them does not depend on how the comparison is set up:
+
+    | Comparison | Full fine-tuning | 5% design | Gap 224 px | Gap 288 px |
+    |---|---|---|---|---|
+    | Equal epochs (10) | `full_ft_llrd_10ep` 76.06 / 77.67 | `imp_trivialaug` 74.28 / 75.99 | 1.78 | 1.68 |
+    | Equal budget (2.4 h, A100 40 GB) | `full_ft_llrd` 76.26 / 77.89 | `imp_trivialaug_fullbudget` 74.18 / 75.99 | 2.08 | 1.90 |
+
+  - **Conclusion for the report:** with a tuned recipe on both sides, full fine-tuning beats the 5% design by about 1.7 to 2.1 points, at equal epochs and at equal budget. The 5% design reaches about 97.5% of full fine-tuning's accuracy while training 5% of the backbone and storing 4.3M weights per task instead of 85.8M, and it uses about half the budget to get there. Full fine-tuning is faster at inference (about 7 ms against 11.7 ms at 288 px).
+- **Decision:** the final 5% model stays at 10 epochs (`final_5pct_trivialaug`); training it longer would not help.
+- **Log:** `results/imp_trivialaug_fullbudget/log.jsonl`, `summary.json`.
+
+### imp_head_from_lp, run 35 (30 Oct 2026, lilian)
+
+- **Why:** LP-FT (Kumar et al. 2022): train the head first, then the rest. Our head starts from class averages (35.7% zero-shot); the linear probe's trained head (run 17) starts at 62.6%, so the adapters should begin from a better point.
+- **Setup:** `configs/imp_head_from_lp.yaml`: `imp_trivialaug` (best 5% run, 74.28%) with one change, `head_init_from: abl_linear_probe` (the head copied from run 17's `final.pt`). Everything else identical: LoRA r=12 + AdaptFormer b=208, lr 1e-4, head x0.5, label smoothing 0.1, TrivialAugment + random erasing 0.25, 10 epochs. Zero-shot line 62.62%, so the linear-probe head was loaded.
+- **Result:** hold-out top-1 **70.28%** (-4.00 against `imp_trivialaug`), top-5 87.75, hold-out loss 1.538. At 288 px 71.97% (+1.69, the usual test-size gain), 72.10% with mirror averaging.
+- **Per epoch** (`imp_trivialaug` in brackets): hold-out top-1 68.11 (64.97), 68.73 (69.26), 69.29 (71.52), 69.62 (72.66), 69.82 (73.56), 69.90 (73.72), 70.23 (73.91), 70.14 (74.24), 70.25 (74.24), 70.28 (74.28). Hold-out loss 1.566 to 1.538, almost flat (`imp_trivialaug`: 1.740 to 1.311). Mean training loss 2.42, 2.26, ... 1.90 (`imp_trivialaug`: 3.44, 2.79, ... 2.04).
+- **Efficiency:** 4,287,936 adapter params (4.998%), head 7.69M. Latency 12.1 ms at 224 px. Train 1.376 h on an A100 40 GB = 1.147 h in 48 GB-equivalent. Peak VRAM 7.3 GiB.
+- **Interpretation:**
+  - Ahead only after epoch 1 (+3.1), behind from epoch 2 on, and almost flat after epoch 4 (+0.7 over the last six epochs, against +1.6 for `imp_trivialaug`).
+  - It is overfitting, not a lack of training: the **training** loss ends lower than `imp_trivialaug` (1.90 against 2.04) while the **hold-out** loss stays much higher (1.538 against 1.311). The linear-probe head had already been trained for 10 epochs on the same 43 training images per class, so it starts fitted to those images. The training loss is low from step 1 (2.9 against 4.8), the gradients reaching the adapters are small and come mostly from examples the head already fits, and what the adapters learn transfers poorly to new images. With the class-average head the adapters must explain the data themselves, which generalises better.
+  - Why LP-FT does not carry over: its benefit is that a good head stops full fine-tuning from distorting the pre-trained features. Here the backbone is frozen and the adapters start at zero (the output equals the pre-trained model's), so there is nothing to protect, and only the cost of a head fitted to the training set remains. Kumar et al. also train the head and the backbone on different data or for few epochs; here both stages use the same 43 images per class.
+  - Consistent with `tune_head_init` (head start from 43 images per class: higher zero-shot, 43.3%, but a lower final score, 69.98%) and with the head learning-rate runs (a slower head is better): **a stronger head at the start hurts the 5% design; what helps is letting the adapters do the work.**
+- **Decision:** keep the class-average head (10 images per class). Report as a negative ablation on initialisation (the brief asks about head initialisation).
+- **Log:** `results/imp_head_from_lp/log.jsonl`, `summary.json`.
+
+### tune_ls_lr1e4_init43, run 18 (Nicole; recorded 30 Oct 2026)
+
+- **Why:** the first test of the 43-image head start (`tune_head_init`, -1.07) used the old recipe (lr 3e-4, no label smoothing). This repeats it on the better recipe, in case the higher learning rate was what hurt.
+- **Setup:** `configs/tune_ls_lr1e4_init43.yaml`: `tune_ls_lr1e4` (label smoothing 0.1, lr 1e-4, head x1.0, 10 epochs, 73.02%) with one change, `head_init_per_class: 43` (head from the mean of all 43 training images per class instead of 10). Zero-shot 43.30% (35.70% with 10 images).
+- **Result:** hold-out top-1 **71.99%** (-1.03 against `tune_ls_lr1e4`), top-5 88.61 (-0.72), hold-out loss 1.466 (against 1.420).
+- **Per epoch** (`tune_ls_lr1e4` in brackets): 66.63 (66.95), 69.61 (70.19), 70.77 (71.39), 71.26 (72.10), 71.74 (72.24), 71.71 (72.39), 71.67 (72.70), 72.00 (72.95), 71.87 (73.05), 71.99 (73.02). Behind at every epoch, including the first, despite starting 7.6 points higher; flat from epoch 5 on (+0.25), against +0.78 for the baseline.
+- **Efficiency:** 4,287,936 adapter params (4.998%), head 7.69M. Latency 11.5 ms at 224 px. Train 1.267 h on an A100 80 GB = 2.111 h in 48 GB-equivalent (106% of the budget, inside the +-10% tolerance; the extra feature pass for the head adds about 5 minutes). Peak VRAM 7.3 GiB.
+- **Interpretation:**
+  - The same loss as on the old recipe (-1.03 here, -1.07 for `tune_head_init`), so it does not depend on the learning rate or label smoothing.
+  - Same mechanism as run 35, in a milder form: the class means of all 43 training images include the very images the model then trains on, so the head starts partly fitted to the training set. The higher zero-shot does not carry through, and the hold-out loss ends higher. A head from 10 images per class is a weaker but less biased start, and leaves more for the adapters to learn.
+  - Three runs now point the same way: 43-image head (-1.07, -1.03) and linear-probe head (-4.00, run 35). **The better the head fits the training images at the start, the worse the 5% design ends.**
+- **Decision:** keep `head_init_per_class: 10`. Run 20 (`tune_head_lr_half_init43`, the same change on run 15) is very likely to lose too and can be dropped.
+- **Log:** `results/tune_ls_lr1e4_init43/log.jsonl`, `summary.json`.
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -547,10 +625,10 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 15 | `tune_head_lr_half` | | run 11 with the head at half the adapters' learning rate (head 5e-5) | Ryan | done 18 Oct: 74.14%, best 5% run so far |
 | 16 | `tune_head_lr_double` | | run 11 with the head at twice the adapters' learning rate (head 2e-4) | Ryan | done 18 Oct: 71.75%, clearly worse |
 | 17 | `abl_linear_probe` | | only the head is trained (backbone frozen, no adapters); compare with run 11 to see what the adapters add | lilian | done 21 Oct: 62.62% (re-run; the first attempt stopped at 6.36 epochs on a slow session and was discarded) |
-| 18 | `tune_ls_lr1e4_init43` | | run 11 + head start from all 43 images per class (about 1.25 h) | Nicole | running 18 Oct |
+| 18 | `tune_ls_lr1e4_init43` | | run 11 + head start from all 43 images per class (about 1.25 h) | Nicole | done: 71.99%, -1.03 against run 11 (same loss as run 6); keep the 10-image head |
 | 19 | `tune_head_lr_quarter` | | run 15 with the head at a quarter of the adapters' rate (head 2.5e-5) | Nicole | done: 74.02%, level with run 15 |
-| 20 | `tune_head_lr_half_init43` | | run 15 + head start from all 43 images per class (about 1.25 h) | open (Nicole) | |
-| 21 | `full_ft_ls_headlow` | | run 12 with the head at the backbone's rate (3e-5 instead of 3e-4), fair comparison | open (friend) | |
+| 20 | `tune_head_lr_half_init43` | | run 15 + head start from all 43 images per class (about 1.25 h) | lilian (for Nicole) | claimed 30 Oct |
+| 21 | `full_ft_ls_headlow` | | run 12 with the head at the backbone's rate (3e-5 instead of 3e-4), fair comparison | lilian (for Nicole) | claimed 30 Oct |
 | 22 | no training | | test-size check on a finished run: `python -m common.evaluate <run folder> --sizes 224 256 288` (minutes; see section 5) | lilian | done 22 Oct on `imp_trivialaug`: 288 px gives 75.99% (+1.71), 76.23% with mirror averaging; 288 is the optimum (320: +1.00, 352: -0.22). Follow-up: the same check on `full_ft_ls` |
 | 23 | `imp_droppath` | | run 15 + stochastic depth 0.1 | lilian | done 21 Oct: 74.09%, tie with run 15 (lower hold-out loss) |
 | 24 | `imp_ema` | | run 15 + weight EMA 0.9998 (hold-out and final.pt use the averaged weights) | lilian | done 21 Oct: 74.19%, tie with run 15 (ahead only mid-training) |
@@ -560,12 +638,13 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 28 | `imp_ep15_control` | | run 15 for 15 epochs, A100 40 GB; only if run 25 beats run 15 | - | skipped: run 25 did not beat run 15 |
 | 29 | (written after 22 to 27) | | run 15 + every change from 22 to 26 that gained about 0.5 points or more | - | not needed: none of runs 23 to 26 cleared 0.5 points (all within 0.3 of run 15). The final 5% recipe stays run 15, optionally with TrivialAugment (the nominal best, 74.28, no inference cost), plus the test size from run 22 |
 | 30 | `final_5pct_trivialaug` | | final 5% model: run 26's recipe (TrivialAugment, 74.28%) on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only; A100 40 GB (about 1.5 h) | lilian | done 22 Oct: trained cleanly (1.36 h); submit at `--size 288` |
-| 31 | no training | | fair evaluation of full fine-tuning: `python -m common.evaluate <full_ft_llrd folder> --sizes 224 288` (single pass and mirror averaging at both sizes, like run 22 for the 5% model) | open (lilian) | |
-| 32 | `full_ft_llrd_10ep` | | equal length: `full_ft_llrd` for 10 epochs (33,590 steps), the length of the 5% runs. A100 40 GB preferred (about 1.2 h); then `--sizes 224 288` | open (lilian) | |
-| 33 | `imp_trivialaug_fullbudget` | | equal budget: `imp_trivialaug` filling the 2.4 h budget of an A100 40 GB (about 16 epochs), like `full_ft_llrd`. A100 40 GB only; then `--sizes 224 288` | open (lilian) | |
-| 34 | `imp_trivialaug_llrd` | | run 26 + layer-wise lr decay 0.75 on the adapters (the change that lifted full fine-tuning) | open (Nicole) | |
-| 35 | `imp_head_from_lp` | | run 26 with the head started from the linear probe's trained head (run 17, 62.6%): head first, then adapters (LP-FT). Needs `abl_linear_probe/final.pt` in the runner's runs folder | open (Lilian: the file is on her Drive) | |
-| 36 | `imp_adaptformer_only` | | run 26 settings with AdaptFormer only (b=232): the simpler, faster design | open (Nicole) | |
+| 31 | no training | | fair evaluation of full fine-tuning: `python -m common.evaluate <full_ft_llrd folder> --sizes 224 288` (single pass and mirror averaging at both sizes, like run 22 for the 5% model) | lilian | done 30 Oct: 77.89% at 288 px (+1.63), 77.98% with mirror averaging |
+| 32 | `full_ft_llrd_10ep` | | equal length: `full_ft_llrd` for 10 epochs (33,590 steps), the length of the 5% runs. A100 40 GB preferred (about 1.2 h); then `--sizes 224 288` | lilian | done 30 Oct (A100 80 GB, 1.20 h): 76.06%, 77.67% at 288 px; only -0.2 against 18.2 epochs, so the gap to the 5% track (1.7) is the method |
+| 33 | `imp_trivialaug_fullbudget` | | equal budget: `imp_trivialaug` filling the 2.4 h budget of an A100 40 GB (about 16 epochs), like `full_ft_llrd`. A100 40 GB only; then `--sizes 224 288` | Nicole | done 30 Oct: 74.18%, 75.99% at 288 px (16.9 epochs): no gain over 10 epochs; the gap to full fine-tuning at equal budget is 1.9 to 2.1 |
+| 34 | `imp_trivialaug_llrd` | | run 26 + layer-wise lr decay 0.75 on the adapters (the change that lifted full fine-tuning) | lilian (for Nicole) | claimed 30 Oct |
+| 35 | `imp_head_from_lp` | | run 26 with the head started from the linear probe's trained head (run 17, 62.6%): head first, then adapters (LP-FT). Needs `abl_linear_probe/final.pt` in the runner's runs folder | lilian | done 30 Oct: 70.28% (71.97% at 288 px), 4 points below run 26: the pre-fitted head overfits; keep the class-average head |
+| 36 | `imp_adaptformer_only` | | run 26 settings with AdaptFormer only (b=232): the simpler, faster design | lilian (for Nicole) | claimed 30 Oct |
+| 37 | `final_full_ft_llrd` | | final full fine-tuning model: run 32's recipe (`full_ft_llrd_10ep`, 76.06%, 77.67% at 288 px) on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only. A100 40 GB preferred (about 1.2 h); submit at `--size 288` | lilian | claimed 30 Oct |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
 
