@@ -26,3 +26,4 @@ final_5pct_trivialaug,lilian,lora_adaptformer,,,,4287936,4.998,7690000,11.8,1.36
 full_ft_llrd,lilian,full_ft,76.26,90.91,35.7,85798656,100.0,7690000,6.9,2.274,NVIDIA A100-SXM4-40GB,40,1.895,2.5,18.2,61131,0.0001,128,,"full_ft_ls_headlow + layer-wise lr decay 0.75 (top block 7.5e-5, head 3e-5)"
 full_ft_llrd_10ep,lilian,full_ft,76.06,91.33,35.7,85798656,100.0,7690000,7.1,1.203,NVIDIA A100-SXM4-80GB,80,2.006,9.6,10.0,33590,0.0001,128,,full_ft_llrd for 10 epochs (equal-length comparison with the 5% runs)
 imp_head_from_lp,lilian,lora_adaptformer,70.28,87.75,62.62,4287936,4.998,7690000,12.1,1.376,NVIDIA A100-SXM4-40GB,40,1.147,7.3,10.0,33590,0.0001,128,,imp_trivialaug + head started from the linear probe
+imp_trivialaug_fullbudget,Nicole,lora_adaptformer,74.18,90.38,35.7,4287936,4.998,7690000,12.2,2.36,NVIDIA A100-SXM4-40GB,40,1.967,7.3,16.89,56740,0.0001,128,,imp_trivialaug for the whole budget (equal-budget comparison with full_ft_llrd, A100 40 GB)

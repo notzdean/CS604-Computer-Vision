@@ -1,0 +1,22 @@
+{
+ "name": "imp_trivialaug_fullbudget",
+ "who": "Nicole",
+ "method": "lora_adaptformer",
+ "holdout_top1": 74.18,
+ "holdout_top5": 90.38,
+ "zero_shot_top1": 35.7,
+ "trainable_params": 4287936,
+ "trainable_pct": 4.998,
+ "head_params": 7690000,
+ "latency_ms_bs1": 12.2,
+ "train_hours": 2.36,
+ "gpu": "NVIDIA A100-SXM4-40GB",
+ "gpu_gb": 40,
+ "equiv_hours_48gb": 1.967,
+ "peak_vram_gib": 7.3,
+ "epochs": 16.89,
+ "steps": 56740,
+ "lr": 0.0001,
+ "batch_size": 128,
+ "notes": "imp_trivialaug for the whole budget (equal-budget comparison with full_ft_llrd, A100 40 GB)"
+}
