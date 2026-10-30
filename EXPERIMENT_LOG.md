@@ -627,6 +627,14 @@ Hold-out top-1 by epoch:
 - **Decision:** keep `full_ft_llrd_10ep` as the full fine-tuning recipe: it is equal in accuracy and costs half the budget.
 - **Log:** `results/full_ft_ls_headlow/log.jsonl`, `summary.json`.
 
+### Ensemble check, run 38 (lilian)
+
+- **Setup:** no training. `common.ensemble` averages the class probabilities of `full_ft_llrd` and `full_ft_ls_headlow` on the hold-out at 288 px. A test only: the two 18-epoch models together use about 3.8 h in 48 GB-equivalent, over the 2 h budget.
+- **Result:** `full_ft_llrd` 77.91% (77.89% in run 31: 4 images of 20,000), `full_ft_ls_headlow` 77.42%, **ensemble 78.30%, top-5 92.17: +0.39** over the best single model.
+- **Latency:** 7.2 ms and 23.3 ms were printed, 30.4 ms in total. The 23.3 ms is a timing outlier: `full_ft_ls_headlow` measured 7.2 ms at 288 px in run 21. Expect about 14.4 ms; re-measure before quoting it.
+- **Interpretation:** a small gain, so these models make largely the same errors. They share the seed, the pre-trained weights and the head start, and differ in layer-wise decay only. A second seed could gain more, but this result gives no evidence that it clears 1 point, and it would double the inference latency.
+- **Decision:** no second seed for now; the budget goes to the higher training resolution first (run 39).
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -672,7 +680,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 35 | `imp_head_from_lp` | | run 26 with the head started from the linear probe's trained head (run 17, 62.6%): head first, then adapters (LP-FT). Needs `abl_linear_probe/final.pt` in the runner's runs folder | lilian | done 30 Oct: 70.28% (71.97% at 288 px), 4 points below run 26: the pre-fitted head overfits; keep the class-average head |
 | 36 | `imp_adaptformer_only` | | run 26 settings with AdaptFormer only (b=232): the simpler, faster design | lilian (for Nicole) | claimed 30 Oct |
 | 37 | `final_full_ft_llrd` | | final full fine-tuning model: run 32's recipe (`full_ft_llrd_10ep`, 76.06%, 77.67% at 288 px) on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only. A100 40 GB preferred (about 1.2 h); submit at `--size 288` | lilian | done: trained cleanly (1.26 h, 10 epochs); submit at `--size 288` |
-| 38 | no training | | ensemble check: `python -m common.ensemble <full_ft_llrd folder> <full_ft_llrd_10ep folder> --size 288`. Same seed and recipe, so the gain may understate two separately seeded models. If it clears about 1 point, train a second seed (`EXTRA = "seed=1"`, new `RUN`) | open (lilian) | |
+| 38 | no training | | ensemble check: `python -m common.ensemble <full_ft_llrd folder> <full_ft_ls_headlow folder> --size 288` (`full_ft_llrd_10ep` was not on this Drive) | lilian | done: 78.30%, +0.39 over the best single model; below the 1-point bar, so no second seed for now |
 | 39 | `full_ft_llrd_288` | | run 32 trained at 288 px (`train_size: 288`), the unused half of the budget paying for more pixels. A100 40 GB only (at most about 2 h); then `--sizes 288 320 352`; compare with run 32 at its best test size (77.67%) | open (lilian) | |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
