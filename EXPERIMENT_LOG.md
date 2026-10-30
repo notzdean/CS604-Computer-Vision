@@ -550,10 +550,10 @@ Hold-out top-1 by epoch:
 - **Next:** run 33 (`imp_trivialaug_fullbudget`, A100 40 GB) tests whether the 5% design, given the whole budget, closes any of the 1.7 points. Given run 32, a final full fine-tuning model needs only 10 epochs.
 - **Log:** `results/full_ft_llrd_10ep/log.jsonl`, `summary.json`.
 
-### Fair track comparison, equal budget: imp_trivialaug_fullbudget (run 33) (30 Oct 2026)
+### Fair track comparison, equal budget: imp_trivialaug_fullbudget (run 33) (30 Oct 2026, Nicole)
 
 - **Why:** the other half of the fair comparison. `full_ft_llrd` used the whole 2.4 h budget of an A100 40 GB (18.2 epochs); the best 5% run (`imp_trivialaug`) stopped at 10 epochs, about 55% of it. This run gives the 5% recipe the same budget.
-- **Setup:** `configs/imp_trivialaug_fullbudget.yaml`: `imp_trivialaug` with one change, `epochs: null` (auto length, fill the budget). A100 40 GB, so the same 2.4 h budget as `full_ft_llrd`. Then `common.evaluate --sizes 224 288`. (`summary.json` records `who: Nicole`.)
+- **Setup:** `configs/imp_trivialaug_fullbudget.yaml`: `imp_trivialaug` with one change, `epochs: null` (auto length, fill the budget). A100 40 GB, so the same 2.4 h budget as `full_ft_llrd`. Then `common.evaluate --sizes 224 288`.
 - **Result:** hold-out top-1 **74.18%** at 224 px (top-5 90.38, loss 1.333), 74.47% with mirror averaging; **75.99%** at 288 px (+1.81; top-5 91.42, loss 1.244), 76.27% with mirror averaging. Latency 11.6 / 11.8 ms (224 / 288 px).
 - **Per epoch (hold-out top-1):** 64.90, 69.20, 71.40, 72.55, 73.19, 73.43, 73.47, 73.68, 73.97, 74.16, 74.14, 74.10, 74.20, 74.31, 74.22, 74.19, 74.18 (16.89, final). Hold-out loss lowest at epoch 7 (1.308), 1.333 at the end.
 - **Efficiency:** 4,287,936 adapter params (4.998%), head 7.69M. Train 2.360 h on an A100 40 GB = 1.967 h in 48 GB-equivalent (98% of the budget). 56,740 steps, 16.89 epochs. Peak VRAM 7.3 GiB.
@@ -625,7 +625,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 30 | `final_5pct_trivialaug` | | final 5% model: run 26's recipe (TrivialAugment, 74.28%) on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only; A100 40 GB (about 1.5 h) | lilian | done 22 Oct: trained cleanly (1.36 h); submit at `--size 288` |
 | 31 | no training | | fair evaluation of full fine-tuning: `python -m common.evaluate <full_ft_llrd folder> --sizes 224 288` (single pass and mirror averaging at both sizes, like run 22 for the 5% model) | lilian | done 30 Oct: 77.89% at 288 px (+1.63), 77.98% with mirror averaging |
 | 32 | `full_ft_llrd_10ep` | | equal length: `full_ft_llrd` for 10 epochs (33,590 steps), the length of the 5% runs. A100 40 GB preferred (about 1.2 h); then `--sizes 224 288` | lilian | done 30 Oct (A100 80 GB, 1.20 h): 76.06%, 77.67% at 288 px; only -0.2 against 18.2 epochs, so the gap to the 5% track (1.7) is the method |
-| 33 | `imp_trivialaug_fullbudget` | | equal budget: `imp_trivialaug` filling the 2.4 h budget of an A100 40 GB (about 16 epochs), like `full_ft_llrd`. A100 40 GB only; then `--sizes 224 288` | lilian | done 30 Oct: 74.18%, 75.99% at 288 px (16.9 epochs): no gain over 10 epochs; the gap to full fine-tuning at equal budget is 1.9 to 2.1 |
+| 33 | `imp_trivialaug_fullbudget` | | equal budget: `imp_trivialaug` filling the 2.4 h budget of an A100 40 GB (about 16 epochs), like `full_ft_llrd`. A100 40 GB only; then `--sizes 224 288` | Nicole | done 30 Oct: 74.18%, 75.99% at 288 px (16.9 epochs): no gain over 10 epochs; the gap to full fine-tuning at equal budget is 1.9 to 2.1 |
 | 34 | `imp_trivialaug_llrd` | | run 26 + layer-wise lr decay 0.75 on the adapters (the change that lifted full fine-tuning) | open (Nicole) | |
 | 35 | `imp_head_from_lp` | | run 26 with the head started from the linear probe's trained head (run 17, 62.6%): head first, then adapters (LP-FT). Needs `abl_linear_probe/final.pt` in the runner's runs folder | lilian | done 30 Oct: 70.28% (71.97% at 288 px), 4 points below run 26: the pre-fitted head overfits; keep the class-average head |
 | 36 | `imp_adaptformer_only` | | run 26 settings with AdaptFormer only (b=232): the simpler, faster design | open (Nicole) | |
