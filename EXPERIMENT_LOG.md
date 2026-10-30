@@ -41,6 +41,7 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | full_ft_llrd | Full fine-tuning + label smoothing + head at the backbone's rate + layer-wise lr decay 0.75, full 2.4 h budget (18.2 epochs) | `full_ft_llrd` | **76.26** | 100 | 7.69M (trained) | 2.27 (A100 40 GB) | not recorded here |
 | full_ft_llrd at test size 288 | same model, scored at 288 px (no retraining; run 31) | `full_ft_llrd` + `--sizes 288` | **77.89** (77.98 with mirror averaging) | 100 | 7.69M (trained) | - | not recorded here |
 | full_ft_llrd_10ep | `full_ft_llrd` for 10 epochs, the length of the 5% runs (run 32) | `full_ft_llrd_10ep` | 76.06 (77.67 at 288 px) | 100 | 7.69M (trained) | 1.20 | not recorded here |
+| imp_head_from_lp | `imp_trivialaug` with the head started from the linear probe's trained head (run 35) | `imp_head_from_lp` | 70.28 (71.97 at 288 px) | 4.998 | 7.69M (trained) | 1.38 (A100 40 GB) | not recorded here |
 
 Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
@@ -548,6 +549,21 @@ Hold-out top-1 by epoch:
 - **Next:** run 33 (`imp_trivialaug_fullbudget`, A100 40 GB) tests whether the 5% design, given the whole budget, closes any of the 1.7 points. Given run 32, a final full fine-tuning model needs only 10 epochs.
 - **Log:** `results/full_ft_llrd_10ep/log.jsonl`, `summary.json`.
 
+### imp_head_from_lp, run 35 (30 Oct 2026, lilian)
+
+- **Why:** LP-FT (Kumar et al. 2022): train the head first, then the rest. Our head starts from class averages (35.7% zero-shot); the linear probe's trained head (run 17) starts at 62.6%, so the adapters should begin from a better point.
+- **Setup:** `configs/imp_head_from_lp.yaml`: `imp_trivialaug` (best 5% run, 74.28%) with one change, `head_init_from: abl_linear_probe` (the head copied from run 17's `final.pt`). Everything else identical: LoRA r=12 + AdaptFormer b=208, lr 1e-4, head x0.5, label smoothing 0.1, TrivialAugment + random erasing 0.25, 10 epochs. Zero-shot line 62.62%, so the linear-probe head was loaded.
+- **Result:** hold-out top-1 **70.28%** (-4.00 against `imp_trivialaug`), top-5 87.75, hold-out loss 1.538. At 288 px 71.97% (+1.69, the usual test-size gain), 72.10% with mirror averaging.
+- **Per epoch** (`imp_trivialaug` in brackets): hold-out top-1 68.11 (64.97), 68.73 (69.26), 69.29 (71.52), 69.62 (72.66), 69.82 (73.56), 69.90 (73.72), 70.23 (73.91), 70.14 (74.24), 70.25 (74.24), 70.28 (74.28). Hold-out loss 1.566 to 1.538, almost flat (`imp_trivialaug`: 1.740 to 1.311). Mean training loss 2.42, 2.26, ... 1.90 (`imp_trivialaug`: 3.44, 2.79, ... 2.04).
+- **Efficiency:** 4,287,936 adapter params (4.998%), head 7.69M. Latency 12.1 ms at 224 px. Train 1.376 h on an A100 40 GB = 1.147 h in 48 GB-equivalent. Peak VRAM 7.3 GiB.
+- **Interpretation:**
+  - Ahead only after epoch 1 (+3.1), behind from epoch 2 on, and almost flat after epoch 4 (+0.7 over the last six epochs, against +1.6 for `imp_trivialaug`).
+  - It is overfitting, not a lack of training: the **training** loss ends lower than `imp_trivialaug` (1.90 against 2.04) while the **hold-out** loss stays much higher (1.538 against 1.311). The linear-probe head had already been trained for 10 epochs on the same 43 training images per class, so it starts fitted to those images. The training loss is low from step 1 (2.9 against 4.8), the gradients reaching the adapters are small and come mostly from examples the head already fits, and what the adapters learn transfers poorly to new images. With the class-average head the adapters must explain the data themselves, which generalises better.
+  - Why LP-FT does not carry over: its benefit is that a good head stops full fine-tuning from distorting the pre-trained features. Here the backbone is frozen and the adapters start at zero (the output equals the pre-trained model's), so there is nothing to protect, and only the cost of a head fitted to the training set remains. Kumar et al. also train the head and the backbone on different data or for few epochs; here both stages use the same 43 images per class.
+  - Consistent with `tune_head_init` (head start from 43 images per class: higher zero-shot, 43.3%, but a lower final score, 69.98%) and with the head learning-rate runs (a slower head is better): **a stronger head at the start hurts the 5% design; what helps is letting the adapters do the work.**
+- **Decision:** keep the class-average head (10 images per class). Report as a negative ablation on initialisation (the brief asks about head initialisation).
+- **Log:** `results/imp_head_from_lp/log.jsonl`, `summary.json`.
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -590,7 +606,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 32 | `full_ft_llrd_10ep` | | equal length: `full_ft_llrd` for 10 epochs (33,590 steps), the length of the 5% runs. A100 40 GB preferred (about 1.2 h); then `--sizes 224 288` | lilian | done 30 Oct (A100 80 GB, 1.20 h): 76.06%, 77.67% at 288 px; only -0.2 against 18.2 epochs, so the gap to the 5% track (1.7) is the method |
 | 33 | `imp_trivialaug_fullbudget` | | equal budget: `imp_trivialaug` filling the 2.4 h budget of an A100 40 GB (about 16 epochs), like `full_ft_llrd`. A100 40 GB only; then `--sizes 224 288` | open (lilian) | |
 | 34 | `imp_trivialaug_llrd` | | run 26 + layer-wise lr decay 0.75 on the adapters (the change that lifted full fine-tuning) | open (Nicole) | |
-| 35 | `imp_head_from_lp` | | run 26 with the head started from the linear probe's trained head (run 17, 62.6%): head first, then adapters (LP-FT). Needs `abl_linear_probe/final.pt` in the runner's runs folder | open (Lilian: the file is on her Drive) | |
+| 35 | `imp_head_from_lp` | | run 26 with the head started from the linear probe's trained head (run 17, 62.6%): head first, then adapters (LP-FT). Needs `abl_linear_probe/final.pt` in the runner's runs folder | lilian | done 30 Oct: 70.28% (71.97% at 288 px), 4 points below run 26: the pre-fitted head overfits; keep the class-average head |
 | 36 | `imp_adaptformer_only` | | run 26 settings with AdaptFormer only (b=232): the simpler, faster design | open (Nicole) | |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
