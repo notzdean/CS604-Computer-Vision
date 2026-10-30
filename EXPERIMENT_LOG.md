@@ -608,6 +608,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 34 | `imp_trivialaug_llrd` | | run 26 + layer-wise lr decay 0.75 on the adapters (the change that lifted full fine-tuning) | open (Nicole) | |
 | 35 | `imp_head_from_lp` | | run 26 with the head started from the linear probe's trained head (run 17, 62.6%): head first, then adapters (LP-FT). Needs `abl_linear_probe/final.pt` in the runner's runs folder | lilian | done 30 Oct: 70.28% (71.97% at 288 px), 4 points below run 26: the pre-fitted head overfits; keep the class-average head |
 | 36 | `imp_adaptformer_only` | | run 26 settings with AdaptFormer only (b=232): the simpler, faster design | open (Nicole) | |
+| 37 | `final_full_ft_llrd` | | final full fine-tuning model: run 32's recipe (`full_ft_llrd_10ep`, 76.06%, 77.67% at 288 px) on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only. A100 40 GB preferred (about 1.2 h); submit at `--size 288` | lilian | claimed 30 Oct |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
 
