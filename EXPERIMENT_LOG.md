@@ -857,6 +857,6 @@ Each row is one run. Add the result to `results/results.csv` and a section above
 - Open question for the professor: which model's predictions go to the leaderboard and to the 2 Phase 2 submissions: the full fine-tuning model, the 5% model, or one of each?
 - Open question for the professor: an 80 GB A100 is counted here as 80 GB (budget 1.2 h). The LoRA run peaked at 6.7 GiB, so ask whether such a run may use the full 2 h.
 - Zero-shot baseline for the report (0% trained, head set from class means): 43.30% with all 43 training images per class, 35.70% with 10 per class. The brief reports 43.7%.
-- Base model: the professor ruled on 12 Oct 2026 that a different base checkpoint is not allowed (the IN21K-only weights were considered and dropped). Whether a larger input size than 224 px is allowed has not been asked yet.
+- Base model: the professor ruled on 12 Oct 2026 that a different base checkpoint is not allowed (the IN21K-only weights were considered and dropped). A larger input size than 224 px is allowed, for training and testing (reported by lilian, 31 Oct 2026).
 - Hold-out numbers are not leaderboard numbers. Report both and say which is which.
 - Leaderboard scores are not published by teams, and this repo is public, so they are not recorded here. Keep them in the report only.
