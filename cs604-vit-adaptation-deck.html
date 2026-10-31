@@ -1098,21 +1098,21 @@
               <tr>
                 <td><strong>Equal length:</strong> full fine-tuning for 10 epochs</td>
                 <td class="run-id">full_ft_llrd_10ep</td>
-                <td class="res"><span class="tag-pending">[pending]</span></td>
+                <td class="res">76.1% against 74.3%: gap 1.8</td>
               </tr>
               <tr>
                 <td><strong>Equal budget:</strong> our model for the whole budget</td>
                 <td class="run-id">imp_trivialaug_fullbudget</td>
-                <td class="res"><span class="tag-pending">[pending]</span></td>
+                <td class="res">74.2% against 76.3%: gap 2.1</td>
               </tr>
               <tr>
                 <td>Both tracks tested at 288 px</td>
                 <td class="run-id">—</td>
-                <td class="res"><span class="tag-pending">[pending]</span></td>
+                <td class="res">76.0% against 77.7% (10 epochs): gap 1.7</td>
               </tr>
             </tbody>
           </table>
-          <p class="table-cap">Results to fill in once runs 31 to 33 are done</p>
+          <p class="table-cap">Same number of epochs or the same budget, the gap stays about 2 points: it is the method, not training length</p>
         </div>
         <footer class="foot"><span>CS604 Computer Vision · Team 01</span><span class="pn">12 / 14</span></footer>
         <aside class="notes">(75 s) Show that we checked our own claim. If the gap shrinks at equal budget, the story is "training time, not method"; if not, full fine-tuning simply benefits from 450,000 images, as the course's adaptation table predicts for large datasets.</aside>

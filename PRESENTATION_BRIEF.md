@@ -141,15 +141,15 @@ to train, but slower at inference and 2 points behind.
 
 ## 12. Is the comparison fair?
 
-- Full fine-tuning trained 18.2 epochs (95% of the budget), our model 10 epochs (about 55%)
-- **[pending]** equal length: full fine-tuning for 10 epochs (`full_ft_llrd_10ep`)
-- **[pending]** equal budget: our model for the whole budget (`imp_trivialaug_fullbudget`)
-- **[pending]** both tracks tested at 288 px
+- Full fine-tuning trained 18.2 epochs (95% of the budget), our model 10 epochs (about 55%), so we checked both ways
+- Equal length (10 epochs): 76.1% against 74.3%, gap 1.8 (`full_ft_llrd_10ep`)
+- Equal budget (our model 16.9 epochs): 74.2% against 76.3%, gap 2.1 (`imp_trivialaug_fullbudget`)
+- Both tested at 288 px: 76.0% against 77.7% (10 epochs), gap 1.7
 
-**Figure:** fill in a small table once runs 31 to 33 are done.
-**Notes (75 s):** Show that we checked our own claim. If the gap shrinks at equal budget, the story is "training time,
-not method"; if not, full fine-tuning simply benefits from 450,000 images, as the course's adaptation table predicts
-for large datasets.
+**Figure:** the three-row check table (check, run, result).
+**Notes (75 s):** Show that we checked our own claim. The gap stays about 2 points whether we equalise epochs or budget,
+so training time is not the explanation; the method is. Full fine-tuning simply benefits from 450,000 images, as the
+course's adaptation table predicts for large datasets.
 
 ## 13. Takeaways
 
