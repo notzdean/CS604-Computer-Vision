@@ -50,6 +50,62 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 
 Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
+## Hypotheses and the runs that tested them
+
+Written 31 Oct 2026, from the config notes, the queue and the run sections below. Most of these were stated as questions when the runs were planned, so the wording here is a reconstruction, not a pre-registration. All numbers are hold-out top-1 at 224 px unless a size is given; differences under about 0.5 points are within noise. Details are in each run's section under Runs. Runs 34 and 36 are not in `results/results.csv` yet.
+
+### Where should the 5% go? (design)
+
+| # | Hypothesis | Runs | Baseline | Verdict |
+|---|---|---|---|---|
+| H1 | More adapter parameters give higher accuracy than the brief's small LoRA | `abl_lora_only` 70.76 (r=116), `abl_adaptformer_only` 71.09, `abl_combined` 71.05 | `lora_r8_full` 68.78 (0.34%; 7.02 epochs, against 10) | **Supported**, +2 to +2.3, though the length also differs |
+| H2 | Adapting both attention and FFN beats adapting either alone at the same 5% | `abl_combined` 71.05 | `abl_lora_only` 70.76, `abl_adaptformer_only` 71.09 | **Rejected**: a tie |
+| H3 | The tie in H2 hid a difference that the tuned recipe would reveal, so AdaptFormer alone could match the combined design | `imp_adaptformer_only` 73.78 (run 36) | `imp_trivialaug` 74.28 | **Inconclusive**: -0.50, at the noise bar; 9.5 against 11.8 ms. 288 px not scored yet |
+| H4 | Late blocks carry the fine-grained adaptation, so the 5% is best spent on the last 6 | `abl_adaptformer_last6` 70.17 | `abl_adaptformer_only` 71.09 | **Rejected**: -0.92 |
+
+### Is over-confidence the limit? (loss and learning rate)
+
+| # | Hypothesis | Runs | Baseline | Verdict |
+|---|---|---|---|---|
+| H5 | Label smoothing helps, because the model becomes over-confident on 45 images per class | `tune_label_smoothing` 72.17; `full_ft_ls` 73.98 | `abl_combined` 71.05; `full_ft_baseline` 72.53 | **Supported**: +1.12 and +1.45 |
+| H6 | A lower learning rate helps and a higher one hurts | `tune_lr_low` 72.37 (2e-4), `tune_lr_high` 69.28 (5e-4) | `abl_combined` 71.05 (3e-4) | **Supported**: +1.32 and -1.77 |
+| H7 | Label smoothing and a lower learning rate add up | `tune_ls_lr2e4` 72.35 | `tune_label_smoothing` 72.17, `tune_lr_low` 72.37 | **Rejected**: no more than either alone, so they fix the same problem |
+| H8 | With label smoothing, a still lower learning rate keeps helping | `tune_ls_lr1e4` 73.02, `tune_ls_lr5e5` 73.52; `tune_ls_lr3e5` skipped | `tune_ls_lr2e4` 72.35 | **Supported down to 1e-4** (+0.67); 5e-5 adds a further +0.50, at the noise bar |
+
+### What does the head do? (classifier head)
+
+| # | Hypothesis | Runs | Baseline | Verdict |
+|---|---|---|---|---|
+| H9 | A better head start gives a better final model | `tune_head_init` 69.98; `tune_ls_lr1e4_init43` 71.99; `imp_head_from_lp` 70.28. Run 20 not run | `abl_combined` 71.05; `tune_ls_lr1e4` 73.02; `imp_trivialaug` 74.28 | **Rejected** three times: -1.07, -1.03, -4.00, even though zero-shot rises to 43.30 in the first two |
+| H10 | The head should learn more slowly than the adapters | `tune_head_lr_half` 74.14, `tune_head_lr_quarter` 74.02, `tune_head_lr_double` 71.75 | `tune_ls_lr1e4` 73.02 (same rate) | **Supported**: +1.12, +1.00, -1.27; the most sensitive setting found |
+| H11 | Training the head alone gives most of the gain over zero-shot, and the adapters add the rest | `abl_linear_probe` 62.62 | zero-shot 35.70; `tune_ls_lr1e4` 73.02 | **Supported**: about 70% head, 30% adapters |
+
+### Does more regularisation or training time help? (5% recipe)
+
+| # | Hypothesis | Runs | Baseline | Verdict |
+|---|---|---|---|---|
+| H12 | A stronger regulariser adds accuracy on top of the slow head | `imp_droppath` 74.09, `imp_ema` 74.19, `imp_mixup` 73.97 (15 epochs), `imp_trivialaug` 74.28 | `tune_head_lr_half` 74.14 | **Rejected**: all ties. `imp_droppath` does lower the hold-out loss (1.251 against 1.325) |
+| H13 | Layer-wise lr decay lifts the 5% design as it lifted full fine-tuning | `imp_trivialaug_llrd` 72.78, 74.73 at 288 px (run 34) | `imp_trivialaug` 74.28, 75.99 at 288 px | **Rejected**: -1.50 and -1.26 |
+| H14 | Using the whole budget improves on 10 epochs | `imp_trivialaug_fullbudget` 74.18 (16.89 epochs); `full_ft_llrd` 76.26 (18.2 epochs) | `imp_trivialaug` 74.28; `full_ft_llrd_10ep` 76.06 | **Rejected**: -0.10 and +0.20, so both tracks converge by about 10 epochs |
+
+### Full fine-tuning and the track comparison
+
+| # | Hypothesis | Runs | Baseline | Verdict |
+|---|---|---|---|---|
+| H15 | Layer-wise lr decay helps full fine-tuning | `full_ft_llrd` 76.26 | `full_ft_ls_headlow` 75.75 (both about 18 epochs) | **Supported, modestly**: +0.51. The earlier +2.28 against `full_ft_ls` also included the slower head and twice the epochs |
+| H16 | Tuned, the 5% design matches full fine-tuning | `imp_trivialaug` 74.28 and `imp_trivialaug_fullbudget` 74.18 (75.99 at 288 px for both) | `full_ft_llrd_10ep` 76.06 (77.67) and `full_ft_llrd` 76.26 (77.89) | **Rejected**: a gap of 1.7 to 2.1 at equal epochs and at equal budget. The earlier tie (74.14 against `full_ft_ls` 73.98) was against untuned full fine-tuning. All at a 224 px training size |
+
+### Do more pixels or more models help?
+
+| # | Hypothesis | Runs | Baseline | Verdict |
+|---|---|---|---|---|
+| H17 | Testing above the training size helps, because random crops make objects look larger in training (FixRes) | `imp_trivialaug` 75.99 at 288 px (run 22); `full_ft_llrd` 77.89 (run 31); `full_ft_llrd_10ep` 77.67 (run 32); `full_ft_ls_headlow` 77.43 (run 21) | the same models at 224 px | **Supported**: +1.61 to +1.71, no retraining |
+| H18 | Averaging two models clears 1 point | `full_ft_llrd` + `full_ft_ls_headlow` 78.30 at 288 px (run 38) | `full_ft_llrd` 77.91 at 288 px | **Rejected**: +0.39, at twice the inference cost |
+| H19 | Fine-grained classes depend on small details, so training at a higher resolution beats only testing at it | `full_ft_llrd_288` 79.69 at 288 px, 80.45 at 352 px (run 39) | `full_ft_llrd_10ep` 77.67 at 288 px | **Supported**: +2.02 at 288 px, the largest single gain at equal epochs |
+| H20 | Training at 288 px lifts the 5% design too, and so changes the track gap | not run yet | `imp_trivialaug` 75.99 at 288 px | **Open** |
+
+Not listed: `final_5pct_trivialaug`, `final_full_ft_llrd` and `final_full_ft_llrd_288` test no hypothesis. They retrain a chosen recipe on all 45 images per class and have no hold-out score.
+
 ## Runs
 
 ### lora_r8_full (4 Oct 2026, Nicole)
