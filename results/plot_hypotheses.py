@@ -80,10 +80,16 @@ def delta_label(d):
     return f"{d:+.2f}{tag}"
 
 
-def panel(ax, title, verdict, rows):
-    lo, hi = min(min(r[1], r[3]) for r in rows), max(max(r[1], r[3]) for r in rows)
+def x_range(panels):
+    """-> the axis range shared by every panel of one chart."""
+    scores = [s for p in panels for r in p[2] for s in (r[1], r[3])]
+    lo, hi = min(scores), max(scores)
     pad = max((4 - (hi - lo)) / 2, 0.08 * (hi - lo))
-    ax.set_xlim(lo - pad, hi + pad)
+    return lo - pad, hi + pad
+
+
+def panel(ax, title, verdict, rows, xlim):
+    ax.set_xlim(*xlim)
     ax.set_ylim(len(rows) - 0.5, -0.5)
     for y, (run, score, base, base_score) in enumerate(rows):
         ax.plot([base_score, score], [y, y], color=TESTED, lw=2, alpha=0.35, zorder=1, solid_capstyle="butt")
@@ -110,13 +116,13 @@ def main():
         fig, axes = plt.subplots(len(panels), 1, figsize=(10, sum(heights) + 0.75 * len(panels) + 1.0), gridspec_kw={"height_ratios": heights}, facecolor=SURFACE)
         h = fig.get_figheight()
         for ax, (title, verdict, rows) in zip(axes, panels):
-            panel(ax, title, verdict, rows)
+            panel(ax, title, verdict, rows, x_range(panels))
         fig.subplots_adjust(left=0.31, right=0.86, top=1 - 0.85 / h, bottom=0.6 / h, hspace=0.75)
         fig.suptitle(heading, x=0.02, ha="left", fontsize=13, color=INK, fontweight="bold", y=1 - 0.2 / h)
         fig.legend(handles=[Line2D([], [], marker="o", ls="", ms=8, color=TESTED, label="Tested run"),
                             Line2D([], [], marker="o", ls="", ms=8, markerfacecolor=SURFACE, markeredgecolor=BASE, markeredgewidth=2, label="Baseline")],
                    loc="upper right", ncol=2, frameon=False, fontsize=9, labelcolor=MUTED, bbox_to_anchor=(0.99, 1 - 0.08 / h))
-        fig.text(0.02, 0.15 / h, "Hold-out top-1 (%). Each panel has its own axis range. Right column: tested minus baseline; under 0.5 points is noise.", fontsize=8, color=MUTED)
+        fig.text(0.02, 0.15 / h, "Hold-out top-1 (%). All panels share one axis range; other charts may differ. Right column: tested minus baseline; under 0.5 points is noise.", fontsize=8, color=MUTED)
         fig.savefig(f"{OUT}/{name}.png", dpi=150, facecolor=SURFACE)
         plt.close(fig)
 
