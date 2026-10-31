@@ -119,6 +119,68 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 
 Not listed: `final_5pct_trivialaug`, `final_full_ft_llrd` and `final_full_ft_llrd_288` test no hypothesis. They retrain a chosen recipe on all 45 images per class and have no hold-out score.
 
+## Proposed architecture
+
+Written 31 Oct 2026 from the hypothesis findings above (H1 to H20). Both tracks use the same base model, `vit_base_patch16_224.augreg2_in21k_ft_in1k`, with its head replaced by a 10,000-class linear head (7.69M params, not counted in the trainable %). Scores are hold-out top-1.
+
+### Efficient-adaptation track (under 5%)
+
+Every one of the 12 transformer blocks gets the same two adapters; the original weights stay frozen.
+
+```
+image -> patch + position embeddings (frozen)
+      -> 12 x block:
+           x + Attention(norm(x))     qkv = frozen W x + (24 / 12) * B(A(x))         LoRA r=12 (trained)
+           x + FFN(norm(x))           + 0.1 * up(ReLU(down(norm(x))))                AdaptFormer b=208 (trained)
+      -> linear head, 10,000 classes (trained, slower than the adapters)
+```
+
+Both trained updates start at zero (`lora_B`, `up`), so training starts from the pre-trained features. Adapters: 4,287,936 params, 4.998% of the backbone.
+
+| Decision | Choice | Evidence |
+|---|---|---|
+| How much to adapt | Spend the whole 5% | H1: +2 to +2.3 over LoRA r=8, though that run was also shorter |
+| Where | Every block, not only the last ones | H4: the last 6 blocks alone lose 0.92 |
+| Which adapter | LoRA + AdaptFormer | H2 and H3 do not separate the designs: a tie, then -0.50 for AdaptFormer alone, at the noise bar. We keep the combined design because it has the nominal best score and its final model is trained; AdaptFormer alone is the simpler, faster alternative (9.5 against 11.8 ms) |
+| Head start | Class averages from 10 images per class, calibrated | H9: stronger starts lost 1.03 to 4.00 |
+| Head learning rate | 5e-5, half the adapters' 1e-4 | H10: the most sensitive setting on this track |
+| Loss | Cross-entropy with label smoothing 0.1 | H5: +1.12 |
+| Learning rate | 1e-4, cosine with warmup | H6, H8: 5e-5 is not clearly better (+0.50, at the noise bar) |
+| Layer-wise lr decay | None | H13: -1.50 on this track |
+| Regularisation | TrivialAugment + random erasing 0.25 | H12: a tie (+0.14), so optional; kept because it is the nominal best and costs nothing at inference |
+| Length | 10 epochs | H14: the whole budget adds nothing |
+| Image size | Train at 224 px, test at 288 px | H17: +1.71. Training at 288 px (H20) is untested and could change this |
+
+Measured: **74.28% at 224 px, 75.99% at 288 px**, 1.19 h in 48 GB-equivalent, 11.8 ms at 224 px. Config: `imp_trivialaug`; on all 45 images per class: `final_5pct_trivialaug`.
+
+### Full fine-tuning track (100%)
+
+The same base model with every weight trained and no added layers.
+
+| Decision | Choice | Evidence |
+|---|---|---|
+| Layer-wise lr decay | 0.75 per block, top block 7.5e-5 | H15: +0.51 |
+| Head learning rate | 3e-5, slower than the top block | H10 on the 5% track; here it was only tested together with other changes (see H15) |
+| Loss | Cross-entropy with label smoothing 0.1 | H5: +1.45 |
+| Regularisation | Weight decay 0.05, no added regulariser | H12 was only tested on the 5% track; not tested here |
+| Length | 10 epochs | H14: 18.2 epochs add only 0.20 |
+| Image size | Train at 288 px, test at 352 px | H19: +2.02 from training at 288 px; the test size adds about 0.8 more. 352 px was chosen on this same hold-out, so 80.45% is slightly optimistic |
+| Ensembling | None | H18: +0.39 for twice the inference cost |
+
+Measured: **79.69% at 288 px, 80.45% at 352 px**, 1.67 h in 48 GB-equivalent, about 7 ms (the 352 px reading of 16.1 ms looks like an outlier and needs re-measuring). Config: `full_ft_llrd_288`.
+
+### What the findings imply for the design
+
+- **The input matters more than the adapter.** Resolution gave the largest gain at equal epochs (H19), while the adapter type made no clear difference (H2, H3).
+- **The head is a design part, not an afterthought.** It carries about 70% of the gain over zero-shot (H11) and overfits first, so it gets a gentle start and a slower rate (H9, H10).
+- **Full fine-tuning is the higher-accuracy design; the 5% design is the smaller one.** At the same training size the gap is 1.7 to 2.1 points (H16). The 5% design stores about 12M params per task against 93.5M, but has slower inference and no clear saving in training time.
+
+### Still open
+
+- **H20, the 5% design trained at 288 px:** until it is run, 80.45 against 75.99 overstates the gap between the tracks.
+- **Final full fine-tuning model:** run 40 stopped at 8.32 of 10 epochs, so choose between a clean re-run and run 39.
+- **Settings not tested as a single change:** weight decay, the adapters' scale 0.1 and LoRA alpha were kept as they were. The r=12 / b=208 split is one tested point, not a tuned optimum.
+
 ## Runs
 
 ### lora_r8_full (4 Oct 2026, Nicole)
