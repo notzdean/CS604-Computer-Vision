@@ -52,7 +52,7 @@ Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
 ## Hypotheses and the runs that tested them
 
-Written 31 Oct 2026, from the config notes, the queue and the run sections below. Most of these were stated as questions when the runs were planned, so the wording here is a reconstruction, not a pre-registration. All numbers are hold-out top-1 at 224 px unless a size is given; differences under about 0.5 points are within noise. Details are in each run's section under Runs. Runs 34 and 36 are not in `results/results.csv` yet.
+Written 31 Oct 2026, from the config notes, the queue and the run sections below. Most of these were stated as questions when the runs were planned, so the wording here is a reconstruction, not a pre-registration. All numbers are hold-out top-1 at 224 px unless a size is given; differences under about 0.5 points are within noise. Details are in each run's section under Runs. Runs 34 and 36 are not in `results/results.csv` yet. The charts show each tested run against its baseline; redraw them with `python results/plot_hypotheses.py`.
 
 ### Where should the 5% go? (design)
 
@@ -63,6 +63,8 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 | H3 | The tie in H2 hid a difference that the tuned recipe would reveal, so AdaptFormer alone could match the combined design | `imp_adaptformer_only` 73.78 (run 36) | `imp_trivialaug` 74.28 | **Inconclusive**: -0.50, at the noise bar; 9.5 against 11.8 ms. 288 px not scored yet |
 | H4 | Late blocks carry the fine-grained adaptation, so the 5% is best spent on the last 6 | `abl_adaptformer_last6` 70.17 | `abl_adaptformer_only` 71.09 | **Rejected**: -0.92 |
 
+![Where should the 5% go?](results/hypothesis_charts/h1_h4_design.png)
+
 ### Is over-confidence the limit? (loss and learning rate)
 
 | # | Hypothesis | Runs | Baseline | Verdict |
@@ -72,6 +74,8 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 | H7 | Label smoothing and a lower learning rate add up | `tune_ls_lr2e4` 72.35 | `tune_label_smoothing` 72.17, `tune_lr_low` 72.37 | **Rejected**: no more than either alone, so they fix the same problem |
 | H8 | With label smoothing, a still lower learning rate keeps helping | `tune_ls_lr1e4` 73.02, `tune_ls_lr5e5` 73.52; `tune_ls_lr3e5` skipped | `tune_ls_lr2e4` 72.35 | **Supported down to 1e-4** (+0.67); 5e-5 adds a further +0.50, at the noise bar |
 
+![Is over-confidence the limit?](results/hypothesis_charts/h5_h8_overconfidence.png)
+
 ### What does the head do? (classifier head)
 
 | # | Hypothesis | Runs | Baseline | Verdict |
@@ -79,6 +83,8 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 | H9 | A better head start gives a better final model | `tune_head_init` 69.98; `tune_ls_lr1e4_init43` 71.99; `imp_head_from_lp` 70.28. Run 20 not run | `abl_combined` 71.05; `tune_ls_lr1e4` 73.02; `imp_trivialaug` 74.28 | **Rejected** three times: -1.07, -1.03, -4.00, even though zero-shot rises to 43.30 in the first two |
 | H10 | The head should learn more slowly than the adapters | `tune_head_lr_half` 74.14, `tune_head_lr_quarter` 74.02, `tune_head_lr_double` 71.75 | `tune_ls_lr1e4` 73.02 (same rate) | **Supported**: +1.12, +1.00, -1.27; the most sensitive setting found |
 | H11 | Training the head alone gives most of the gain over zero-shot, and the adapters add the rest | `abl_linear_probe` 62.62 | zero-shot 35.70; `tune_ls_lr1e4` 73.02 | **Supported**: about 70% head, 30% adapters |
+
+![What does the head do?](results/hypothesis_charts/h9_h11_head.png)
 
 ### Does more regularisation or training time help? (5% recipe)
 
@@ -88,12 +94,16 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 | H13 | Layer-wise lr decay lifts the 5% design as it lifted full fine-tuning | `imp_trivialaug_llrd` 72.78, 74.73 at 288 px (run 34) | `imp_trivialaug` 74.28, 75.99 at 288 px | **Rejected**: -1.50 and -1.26 |
 | H14 | Using the whole budget improves on 10 epochs | `imp_trivialaug_fullbudget` 74.18 (16.89 epochs); `full_ft_llrd` 76.26 (18.2 epochs) | `imp_trivialaug` 74.28; `full_ft_llrd_10ep` 76.06 | **Rejected**: -0.10 and +0.20, so both tracks converge by about 10 epochs |
 
+![Does more regularisation or training time help?](results/hypothesis_charts/h12_h14_recipe.png)
+
 ### Full fine-tuning and the track comparison
 
 | # | Hypothesis | Runs | Baseline | Verdict |
 |---|---|---|---|---|
 | H15 | Layer-wise lr decay helps full fine-tuning | `full_ft_llrd` 76.26 | `full_ft_ls_headlow` 75.75 (both about 18 epochs) | **Supported, modestly**: +0.51. The earlier +2.28 against `full_ft_ls` also included the slower head and twice the epochs |
 | H16 | Tuned, the 5% design matches full fine-tuning | `imp_trivialaug` 74.28 and `imp_trivialaug_fullbudget` 74.18 (75.99 at 288 px for both) | `full_ft_llrd_10ep` 76.06 (77.67) and `full_ft_llrd` 76.26 (77.89) | **Rejected**: a gap of 1.7 to 2.1 at equal epochs and at equal budget. The earlier tie (74.14 against `full_ft_ls` 73.98) was against untuned full fine-tuning. All at a 224 px training size |
+
+![Full fine-tuning and the track comparison](results/hypothesis_charts/h15_h16_tracks.png)
 
 ### Do more pixels or more models help?
 
@@ -103,6 +113,8 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 | H18 | Averaging two models clears 1 point | `full_ft_llrd` + `full_ft_ls_headlow` 78.30 at 288 px (run 38) | `full_ft_llrd` 77.91 at 288 px | **Rejected**: +0.39, at twice the inference cost |
 | H19 | Fine-grained classes depend on small details, so training at a higher resolution beats only testing at it | `full_ft_llrd_288` 79.69 at 288 px, 80.45 at 352 px (run 39) | `full_ft_llrd_10ep` 77.67 at 288 px | **Supported**: +2.02 at 288 px, the largest single gain at equal epochs |
 | H20 | Training at 288 px lifts the 5% design too, and so changes the track gap | not run yet | `imp_trivialaug` 75.99 at 288 px | **Open** |
+
+![Do more pixels or more models help?](results/hypothesis_charts/h17_h19_pixels.png)
 
 Not listed: `final_5pct_trivialaug`, `final_full_ft_llrd` and `final_full_ft_llrd_288` test no hypothesis. They retrain a chosen recipe on all 45 images per class and have no hold-out score.
 
