@@ -123,10 +123,10 @@ The linear-probe comparison gives the 70/30 split.
 - Random training crops make objects look larger than the 224 px test crop
 - Testing the same model at 288 px: 76.0% (+1.7), no retraining; 320 px +1.0, 352 px worse
 - Mirror averaging adds +0.25, at twice the inference cost
-- **[pending]** used for the final submission only if the professor approves
+- Approved by the professor: our final model is tested at 288 px
 
 **Figure:** optional line of accuracy against test size (224, 256, 288, 320, 352), values in `EXPERIMENT_LOG.md` (run 22).
-**Notes (45 s):** A free gain from fixing a train/test mismatch. Be clear that it is pending approval and that full
+**Notes (45 s):** A free gain from fixing a train/test mismatch. Say that the professor approved it and that full
 fine-tuning should be tested the same way for a fair comparison.
 
 ## 11. Results: our 5% model against full fine-tuning

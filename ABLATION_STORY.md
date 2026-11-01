@@ -108,7 +108,7 @@ adds +0.25 more, at twice the inference cost. At batch 1 the latency barely move
 costs about 1.7 times the compute (324 patches instead of 196). Full fine-tuning gains the same, +1.6 to +1.7, so the
 larger test size does not change the comparison between the tracks.
 
-**Lesson:** a train / test mismatch was costing points. *Open: use the larger test size only if the professor approves.*
+**Lesson:** a train / test mismatch was costing points. *The professor approved it, so the final model is tested at 288 px.*
 
 ## Ending: "How close is 5% to 100%?"
 
