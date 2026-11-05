@@ -2,7 +2,7 @@
 
 Built against `project_requirements.md`: cover the investigation, the motivation, the design, the comparison with baselines and the ablations; focus on adaptation methods; show the process, including failed runs; visually rich slides. All scores are hold-out top-1 (2 images per class, 20,000 images), at 224 px unless a size is given. Differences under 0.5 points are noise. Leaderboard and test scores are not written here (public repo): add them to the slides only.
 
-**Storyline:** we set out to find the best adaptation method under 5%. The method type mattered less than how the classifier head adapts and how many pixels the model sees, and, contrary to the brief's expectation, tuned full fine-tuning still beat the 5% design on this few-shot task. For the final models we applied one rule: among options within 0.5 points of the best, take the cheapest. That picked 320 px over 352 px for both tracks, and at a 224 px training size AdaptFormer alone over LoRA + AdaptFormer. Training at 288 px then added about 2 points to both tracks, and with time for one final run we kept the combined design, whose 288 px result was measured, over AdaptFormer alone, whose tie was never tested at 288 px.
+**Storyline:** we set out to find the best adaptation method under 5%. The method type mattered less than how the classifier head adapts and how many pixels the model sees, and, contrary to the brief's expectation, tuned full fine-tuning still beat the 5% design on this few-shot task. For the final models we applied one rule: among options within 0.5 points of the best, take the cheapest. That picked 320 px over 352 px for both tracks, and at a 224 px training size AdaptFormer alone over LoRA + AdaptFormer. Training at 288 px then added about 2 points to both tracks, and we kept the combined design, whose 288 px result was measured, over AdaptFormer alone, whose tie was never tested at 288 px. Both submitted models are the measured hold-out models (runs 39 and 42), trained and tested under the same conditions.
 
 ## Slides
 
@@ -24,7 +24,7 @@ Built against `project_requirements.md`: cover the investigation, the motivation
 | 14 | Comparing the tracks | Paired bars: accuracy, stored params, latency, GPU-hours; `h15_h16_tracks.png` | H16, H20 | 1:00 |
 | 15 | Lessons and novelty | 4 icons; test score; hypothesis scoreboard (6 supported / 7 rejected / 2 split) | | 0:45 |
 
-Backup: full results table; parameter-count rule; latency, GPU-hours and VRAM per final model; a training log; the run-40 duplicate-process incident; why our zero-shot is lower than the brief's.
+Backup: full results table; parameter-count rule; latency, GPU-hours and VRAM per final model; a training log; why our zero-shot is lower than the brief's.
 
 Speaker split (suggestion): person 1 slides 1-6, person 2 slides 7-11, person 3 slides 12-15.
 
@@ -151,7 +151,7 @@ Each finding: what we saw, our explanation, how sure we are.
 | Trained at 288 px, 320 px test (chosen size) | 78.75 | 80.14 |
 | Trained at 288 px, best test size | 78.75 (320 px) | 80.45 (352 px) |
 | Params stored per task, incl. head | 12M | 93.5M |
-| Final model's hold-out twin, at the submitted test size (320 px) | 78.75 (run 42) | 80.14 (run 39) |
+| Submitted model, hold-out score at 320 px | 78.75 (run 42) | 80.14 (run 39) |
 | Latency, batch 1, 224 px | 11.8 ms (AdaptFormer alone 9.5) | 7.1 ms |
 | Training, 48 GB-equivalent | 1.19 h | 1.67 h (288 px) |
 
@@ -179,7 +179,7 @@ Each finding: what we saw, our explanation, how sure we are.
 | 6. Design re-check | Does the tuned recipe separate the designs? | AdaptFormer alone (tie: -0.37 at 288 px; about 17% faster) | 75.62 at 288 px |
 | 6b. Training size | Does training at 288 px help the 5% design? | Yes: +1.95 (combined design, run 42) | 77.94 at 288 px |
 | 6c. Test size again | Which size for a model trained at 288 px? | 320 px (352 is level) | 78.75 |
-| 7. Final model | Retrain on all 45 images per class | The combined design trained at 288 px (run 42's recipe; run by a groupmate, name to fill in), submitted at 320 px. It replaced `final_5pct_adaptformer` (run 43, 224 px) once training at 288 px proved worth +1.95; AdaptFormer alone was never trained at 288 px, so its tie is unproven there | - |
+| 7. Submitted model | Which model goes to the test set? | `imp_trivialaug_288` itself (run 42), at 320 px: its hold-out score is measured | 78.75 |
 
 ### The funnel, full fine-tuning track
 
@@ -191,15 +191,14 @@ Each finding: what we saw, our explanation, how sure we are.
 | + layer-wise decay 0.75 (10 epochs) | `full_ft_llrd_10ep` | 76.06 |
 | Train at 288 px | `full_ft_llrd_288` (79.69 at 288 px) | 80.45 at 352 px |
 | Test size | 320 px: ties 352 (-0.31) with about 17% fewer patches | 80.14 |
-| Final model, all 45 images per class | `final_full_ft_llrd_288_v2` (run 41: clean re-run of run 40, which stopped at 8.32 of 10 epochs; 10 epochs, 2.02 h); submitted at 320 px | - |
+| Submitted model | `full_ft_llrd_288` itself (run 39), at 320 px: the same training size, epochs, test size and hold-out as the 5% model | 80.14 |
 
 ### What we rejected and why
 
 - **Ensemble of two full fine-tuning models:** +0.39 for twice the inference cost.
 - **Using the whole budget:** no gain over 10 epochs on either track.
 - **Stronger head starts and layer-wise decay on adapters:** both lowered accuracy.
-- **The 224 px final 5% models:** `final_5pct_trivialaug` (combined) and `final_5pct_adaptformer` (AdaptFormer alone, run 43), both replaced by a combined model trained at 288 px once that proved worth +1.95.
-- **AdaptFormer alone as the final 5% model:** it ties the combined design and is about 17% faster, but only at 224 px training; there was time for one final run, so the design with a measured 288 px result was kept.
+- **AdaptFormer alone as the submitted 5% model:** it ties the combined design and is about 17% faster, but only at 224 px training; the combined design is the one measured at 288 px training (run 42), so it was kept.
 - **352 px test size for full FT:** +0.31 over 320 px, within noise, for about 21% more patches.
 - **Short fine-tune at 288 px instead of training at 288 px (run 44):** 0.66 lower at 288 px and 1.02 lower at 320 px, for about 11% less compute; useful only when a 224 px model already exists.
 - **Head + class-mean ensemble at test time (run 45):** -0.15, a tie; an extra 768 x 10,000 product for nothing.
@@ -207,5 +206,5 @@ Each finding: what we saw, our explanation, how sure we are.
 ### Limits of the process
 
 - The test size and some settings were chosen on the same hold-out they are reported on, so the best numbers are slightly optimistic.
-- Final models are retrained on all 45 images per class: they have no local score, and we rely on the recipe transferring (4.7% more images per class). The submitted test sizes come from their hold-out twins (runs 36 and 39).
+- The submitted models are the hold-out models (runs 39 and 42), trained on 43 of the 45 images per class. Their test scores can be checked against measured hold-out scores, at the cost of 4.7% of the training data. The test set is the independent check on the 320 px test size, which was chosen on the hold-out.
 - Settings never changed alone: weight decay, the adapters' scale 0.1, LoRA alpha, the r=12 / b=208 split, and AdaptFormer's bottleneck size at a fixed 5% (232 is simply the largest that fits).
