@@ -37,6 +37,7 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | imp_mixup | `tune_head_lr_half` + Mixup 0.8 / CutMix 1.0, 15 epochs | `imp_mixup` | 73.97 | 4.998 | 7.69M (trained) | 1.90 (A100 40 GB) | not recorded here |
 | imp_trivialaug | `tune_head_lr_half` + TrivialAugment + random erasing 0.25 | `imp_trivialaug` | 74.28 | 4.998 | 7.69M (trained) | 1.43 (A100 40 GB) | not recorded here |
 | imp_adaptformer_only | `imp_trivialaug` with AdaptFormer only (b=232, no LoRA), same 4.998% (run 36) | `imp_adaptformer_only` | 73.78 (75.62 at 288 px) | 4.998 | 7.69M (trained) | 1.36 (A100 40 GB) | not recorded here |
+| imp_trivialaug_288 | `imp_trivialaug` trained at 288 px, 10 epochs (run 42) | `imp_trivialaug_288` | **77.94** at 288 px | 4.992 | 7.69M (trained) | 2.04 (A100 40 GB) | not recorded here |
 | imp_trivialaug at test size 288 | same model, scored at 288 px (no retraining; run 22) | `imp_trivialaug` + `--sizes 288` | **75.99** (76.23 with mirror averaging) | 4.998 | 7.69M (trained) | - | not recorded here |
 | final_5pct_trivialaug | final 5% model: `imp_trivialaug` recipe on all 45 images per class (no hold-out) | `final_5pct_trivialaug` | - (no hold-out; leaderboard only) | 4.998 | 7.69M (trained) | 1.36 (A100 40 GB) | not recorded here |
 | full_ft_llrd | Full fine-tuning + label smoothing + head at the backbone's rate + layer-wise lr decay 0.75, full 2.4 h budget (18.2 epochs) | `full_ft_llrd` | **76.26** | 100 | 7.69M (trained) | 2.27 (A100 40 GB) | not recorded here |
@@ -115,7 +116,7 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 | H17 | Testing above the training size helps, because random crops make objects look larger in training (FixRes) | `imp_trivialaug` 75.99 at 288 px (run 22); `full_ft_llrd` 77.89 (run 31); `full_ft_llrd_10ep` 77.67 (run 32); `full_ft_ls_headlow` 77.43 (run 21) | the same models at 224 px | **Supported**: +1.61 to +1.71, no retraining |
 | H18 | Averaging two models clears 1 point | `full_ft_llrd` + `full_ft_ls_headlow` 78.30 at 288 px (run 38) | `full_ft_llrd` 77.91 at 288 px | **Rejected**: +0.39, at twice the inference cost |
 | H19 | Fine-grained classes depend on small details, so training at a higher resolution beats only testing at it | `full_ft_llrd_288` 79.69 at 288 px, 80.45 at 352 px (run 39) | `full_ft_llrd_10ep` 77.67 at 288 px | **Supported**: +2.02 at 288 px, the largest single gain at equal epochs |
-| H20 | Training at 288 px lifts the 5% design too, and so changes the track gap | not run yet | `imp_trivialaug` 75.99 at 288 px | **Open** |
+| H20 | Training at 288 px lifts the 5% design too, and so changes the track gap | `imp_trivialaug_288` 77.94 at 288 px (run 42) | `imp_trivialaug` 75.99 at 288 px; `full_ft_llrd_288` 79.69 at 288 px | **Split**: it lifts the 5% design by +1.95, as much as full fine-tuning (+2.02, H19), so the gap stays: 1.75 points at equal training and test size |
 
 ![Do more pixels or more models help?](results/hypothesis_charts/h17_h19_pixels.png)
 
@@ -151,7 +152,7 @@ Both trained updates start at zero (`lora_B`, `up`), so training starts from the
 | Layer-wise lr decay | None | H13: -1.50 on this track |
 | Regularisation | TrivialAugment + random erasing 0.25 | H12: a tie (+0.14), so optional; kept because it is the nominal best and costs nothing at inference |
 | Length | 10 epochs | H14: the whole budget adds nothing |
-| Image size | Train at 224 px, test at 288 px | H17: +1.71. Training at 288 px (H20) is untested and could change this |
+| Image size | Train at 224 px, test at 288 px | H17: +1.71. Training at 288 px adds +1.95 more (H20, run 42: 77.94% at 288 px), so the final 5% model should be trained at 288 px |
 
 Measured: **74.28% at 224 px, 75.99% at 288 px**, 1.19 h in 48 GB-equivalent, 11.8 ms at 224 px. Config: `imp_trivialaug`; on all 45 images per class: `final_5pct_trivialaug`.
 
@@ -179,7 +180,7 @@ Measured: **79.69% at 288 px, 80.45% at 352 px**, 1.67 h in 48 GB-equivalent, ab
 
 ### Still open
 
-- **H20, the 5% design trained at 288 px:** until it is run, 80.45 against 75.99 overstates the gap between the tracks.
+- **H20, the 5% design trained at 288 px:** resolved by run 42: 77.94% at 288 px (+1.95). The track gap at equal training and test size is 1.75 points (79.69 against 77.94). Larger test sizes for run 42 are not scored yet.
 - **Final full fine-tuning model:** resolved: run 40 stopped at 8.32 of 10 epochs, and its clean re-run, run 41 (`final_full_ft_llrd_288_v2`), completed all 10 epochs. Run 41 is the final full fine-tuning model; run 39 remains the scored reference for its recipe.
 - **Settings not tested as a single change:** weight decay, the adapters' scale 0.1 and LoRA alpha were kept as they were. The r=12 / b=208 split is one tested point, not a tuned optimum.
 
@@ -810,6 +811,17 @@ Hold-out top-1 by epoch:
 - **Decision:** this is the final full fine-tuning model; it replaces run 40 (not fully annealed) and run 37 (trained at 224 px).
 - **Log:** `results/final_full_ft_llrd_288_v2/log.jsonl`, `summary.json`.
 
+### imp_trivialaug_288, run 42 (5 Nov 2026, lilian)
+
+- **Setup:** `configs/imp_trivialaug_288.yaml`: `imp_trivialaug` (run 26) with one change, `train_size: 288`. Tests H20: does training at 288 px lift the 5% design as it lifted full fine-tuning (H19), and does it change the track gap?
+- **Result:** hold-out top-1 **77.94%** at 288 px (top-5 92.38, loss 1.157), **+1.95** over the same recipe trained at 224 px and tested at 288 px (75.99%), and +3.66 over run 26 at 224 px. Zero-shot 36.45% (head init at 288 px). The best 5% run.
+- **Per-epoch hold-out top-1:** 68.51, 72.78, 75.09, 76.03, 76.75, 77.31, 77.58, 77.77, 77.95, 77.94: flat over the last two epochs, so 10 epochs suffice at 288 px too.
+- **Efficiency:** 4,287,936 adapter params = 4.992% of the backbone (the same adapters as run 26; the share is lower because the backbone's position embeddings grow to 324 patches); head 7.69M (not counted). Latency 12.6 ms at 288 px (batch 1). Peak VRAM 11.5 GiB. Train 2.04 h on an A100 40 GB = 1.70 h in 48 GB-equivalent, 85% of the budget; about 624 img/s, steady (one process, no repeated steps).
+- **Interpretation:** training at the higher resolution helps the 5% design as much as full fine-tuning (+1.95 against +2.02), so H20 is split: the 5% design improves, but the gap between the tracks does not change. At equal training and test size (288 px) full fine-tuning leads by **1.75 points** (79.69 against 77.94), in line with the 1.7 to 2.1 found at 224 px (H16). The earlier 80.45 against 75.99 (4.5 points) mixed the method with the training size.
+- **Consequence for the final 5% model:** +1.95 is far above the noise bar and costs only training time (1.70 h in 48 GB-equivalent, inside the budget), so the final 5% model should also be trained at 288 px. AdaptFormer alone was not trained at 288 px; its tie with the combined design (H2 + H3) was measured at a 224 px training size.
+- **Still to do:** `python -m common.evaluate <run> --sizes 288 320 352` (larger test sizes).
+- **Log:** `results/imp_trivialaug_288/log.jsonl`, `summary.json`.
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -859,7 +871,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 39 | `full_ft_llrd_288` | | run 32 trained at 288 px (`train_size: 288`), the unused half of the budget paying for more pixels. A100 40 GB only (at most about 2 h); then `--sizes 288 320 352`; compare with run 32 at its best test size (77.67%) | lilian | done 30 Oct: **79.69%** at 288 px, +2.02 over run 32 (A100 40 GB, 2.00 h); best run of either track; 80.45% tested at 352 px, the optimum (384 px 79.91%, 416 px 79.06%) |
 | 40 | `final_full_ft_llrd_288` | | final full fine-tuning model: run 39's recipe on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only. A100 40 GB only (about 2.0 h); replaces run 37 for the test submission | lilian | stopped early at 8.32 of 10 epochs (2.60 h): a second process ran in the same folder for part of the run. Model usable but not fully annealed; superseded by run 41 |
 | 41 | `final_full_ft_llrd_288_v2` | | clean re-run of run 40 (same config, new `RUN` name `final_full_ft_llrd_288_v2`); no hold-out, leaderboard only. A100 40 GB only | lilian | done: completed 10 epochs in 2.02 h, one process; the final full fine-tuning model; submit at `--size 288` |
-| 42 | `imp_trivialaug_288` | | H20: run 26 (`imp_trivialaug`, 74.28%, 75.99% at 288 px) trained at 288 px (`train_size: 288`), one change. A100 40 GB only (about 2.3 h); then `--sizes 288 320 352`; compare with run 26 at 288 px and with run 39 | lilian | open |
+| 42 | `imp_trivialaug_288` | | H20: run 26 (`imp_trivialaug`, 74.28%, 75.99% at 288 px) trained at 288 px (`train_size: 288`), one change. A100 40 GB only (about 2.3 h); then `--sizes 288 320 352`; compare with run 26 at 288 px and with run 39 | lilian | done 5 Nov: **77.94%** at 288 px, +1.95 over run 26 tested at 288 px; 2.04 h; larger test sizes not scored yet |
 | 43 | `final_5pct_adaptformer` | | final 5% model: run 36's recipe (AdaptFormer only, b=232; 73.78%, 75.62% at 288 px) on all 45 images per class (`holdout_per_class: 0` is in the config); replaces `final_5pct_trivialaug` for the test submission because AdaptFormer alone ties the combined design and is about 17% faster. No hold-out. A100 40 GB (about 1.4 h); submit at `--size 288` | lilian | open |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.

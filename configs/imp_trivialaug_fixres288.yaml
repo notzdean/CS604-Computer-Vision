@@ -1,0 +1,28 @@
+# FixRes short fine-tune: start from the FINISHED imp_trivialaug model (trained at 224 px; 74.28%, 75.99% tested at
+# 288 px) and train 2 more epochs at 288 px, with every trainable weight (adapters + head) carried over (init_from).
+# Why: training full fine-tuning at 288 px from scratch added +2.02 over only testing at 288 px (H19), but it costs
+# 1.65x per epoch. Touvron et al. (FixRes, 2019) get most of that gain by fine-tuning briefly at the test size.
+# This is the cheap alternative to imp_trivialaug_288 (run 42, 10 epochs at 288 px): compare the two.
+# Settings: half the original learning rate (5e-5, head x0.5 as before) with a short warm-up, because the model is
+# already trained and should only adapt to the new object scale. Everything else as in imp_trivialaug.
+# The "zero_shot_top1" column of this run is the starting model scored at 288 px (should be about 75.99).
+# Budget: report the total, imp_trivialaug (1.19 h in 48 GB-equivalent) + this run (about 0.4 h), well inside 2 h.
+# Needs the imp_trivialaug run folder (with final.pt) in the same runs folder (My Drive/cs604_runs).
+# After training: python -m common.evaluate <run> --sizes 288 320
+name: imp_trivialaug_fixres288
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+init_from: imp_trivialaug
+train_size: 288
+epochs: 2
+budget_hours: auto
+batch_size: 128
+lr: 5.0e-5
+head_lr_mult: 0.5
+warmup_steps: 200
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: false
+auto_augment: trivial
+re_prob: 0.25
+notes: "imp_trivialaug + 2 epochs at 288 px from its trained weights (FixRes fine-tune)"

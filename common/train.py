@@ -42,6 +42,8 @@ DEFAULTS = dict(
     auto_augment=None, re_prob=0.0, mixup_alpha=0.0, cutmix_alpha=0.0, mixup_prob=1.0,
     head_init=True, head_init_per_class=10, head_init_scale="auto", eval_at_start=True,
     head_init_from=None,      # name of a finished run in the same runs folder: copy its trained head (e.g. a linear probe)
+    init_from=None,           # name of a finished run in the same runs folder: start from ALL its trained weights
+                              # (adapters + head), e.g. a short fine-tune at a larger train_size (FixRes)
     precision="auto", num_workers=None, eval_batch_size=256, seed=0, holdout_per_class=data.HOLDOUT_PER_CLASS,
     eval_every_epochs=1, ckpt_every_steps=2000, log_every=50,
     out_dir=None, results_csv="results/results.csv",
@@ -205,7 +207,13 @@ def main(argv):
         yaml.safe_dump(cfg, f)
 
     init = None
-    if cfg["head_init_from"] and not ck:     # start from another run's trained head instead of the class means
+    init_state = None
+    if cfg["init_from"] and not ck:          # continue from another run's trained weights; no head init needed
+        src = os.path.join(os.path.dirname(os.path.normpath(out)), cfg["init_from"], "final.pt")
+        if not os.path.exists(src):
+            sys.exit(f"init_from: {src} not found. Put that run's folder (with final.pt) in this runs folder first.")
+        init_state = torch.load(src, map_location="cpu")
+    elif cfg["head_init_from"] and not ck:     # start from another run's trained head instead of the class means
         src = os.path.join(os.path.dirname(os.path.normpath(out)), cfg["head_init_from"], "final.pt")
         if not os.path.exists(src):
             sys.exit(f"head_init_from: {src} not found. Copy that run's final.pt into this runs folder first.")
@@ -219,6 +227,14 @@ def main(argv):
         init = lambda m: ncm_head_init(m, train_rows, device, cfg["head_init_per_class"], workers=workers, amp=amp,
                                        scale=cfg["head_init_scale"], size=size)
     model = build_model(cfg, init_head=init).to(device)
+    if init_state is not None:
+        missing, unexpected = model.load_state_dict(init_state, strict=False)
+        assert not unexpected, unexpected
+        trainable_names = {n for n, p in model.named_parameters() if p.requires_grad}
+        if trainable_names - set(init_state):
+            sys.exit(f"init_from: {cfg['init_from']} has no weights for {sorted(trainable_names - set(init_state))[:5]}; "
+                     "it must use the same method and method_args")
+        print(f"all trainable weights initialised from {cfg['init_from']} ({len(init_state)} tensors)")
     n_train, n_head, n_base = metrics.count_params(model)
     print(f"trainable adapter params: {n_train:,} = {100 * n_train / n_base:.2f}% of backbone ({n_base:,}); "
           f"classifier head (not counted): {n_head:,} trainable")
@@ -242,9 +258,10 @@ def main(argv):
     ema = None
     if cfg["ema_decay"]:                     # EMA of the trainable weights only (the frozen backbone never changes)
         ema = [t.to(device) for t in ck["ema"]] if ck and ck.get("ema") else [p.detach().clone() for p in trainable]
-    if not ck and cfg["head_init"] and cfg["eval_at_start"] and hold_rows:
+    if not ck and (cfg["head_init"] or init_state is not None) and cfg["eval_at_start"] and hold_rows:
         zero_shot = evaluate(model, hold_rows, cfg, device, amp, size=size)
-        print(f"zero-shot (head init only) hold-out top-1: {zero_shot['top1']:.2f}%")
+        what = f"{cfg['init_from']} before this run" if init_state is not None else "head init only"
+        print(f"zero-shot ({what}) hold-out top-1: {zero_shot['top1']:.2f}%")
     budget_h = 96 / gpu_gb if cfg["budget_hours"] == "auto" and gpu_gb else (
         None if cfg["budget_hours"] == "auto" else cfg["budget_hours"])
     if total_steps is None and budget_h is None:

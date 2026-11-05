@@ -21,8 +21,8 @@ Built against `project_requirements.md`: cover the investigation, the motivation
 | 11 | How we selected the models | Selection funnel (see "Model selection process"); the "cheapest within 0.5 points" rule | H2 + H3 | 1:15 |
 | 12 | Iteration 5: more pixels | Test-size curve 224 to 416; crop comparison; `h17_h19_pixels.png` | H17, H19 | 1:00 |
 | 13 | Full fine-tuning track | Framework diagram + progression bars | H13 + H15 | 0:45 |
-| 14 | Comparing the tracks | Paired bars: accuracy, stored params, latency, GPU-hours; `h15_h16_tracks.png` | H16 (H20 as limitation) | 1:00 |
-| 15 | Lessons and novelty | 4 icons; test score; hypothesis scoreboard (6 supported / 7 rejected / 1 split) | | 0:45 |
+| 14 | Comparing the tracks | Paired bars: accuracy, stored params, latency, GPU-hours; `h15_h16_tracks.png` | H16, H20 | 1:00 |
+| 15 | Lessons and novelty | 4 icons; test score; hypothesis scoreboard (6 supported / 7 rejected / 2 split) | | 0:45 |
 
 Backup: full results table; parameter-count rule; latency, GPU-hours and VRAM per final model; a training log; the run-40 duplicate-process incident; why our zero-shot is lower than the brief's.
 
@@ -30,7 +30,7 @@ Speaker split (suggestion): person 1 slides 1-6, person 2 slides 7-11, person 3 
 
 ## Hypotheses (numbers as in `EXPERIMENT_LOG.md`)
 
-Show the hypothesis as the title or subtitle of each iteration slide, and the verdict as a stamp (supported / rejected / split). The wording is reconstructed from the config notes, not pre-registered: say so if asked. Of the 20 in the log, 17 are tested hypotheses, shown in 14 rows (three pairs merged), H11 is shown as a finding, H18 goes to backup and H20 to the limitations. Scoreboard for slide 15: 6 supported, 7 rejected, 1 split (H13 + H15: helps one track, hurts the other).
+Show the hypothesis as the title or subtitle of each iteration slide, and the verdict as a stamp (supported / rejected / split). The wording is reconstructed from the config notes, not pre-registered: say so if asked. Of the 20 in the log, 18 are tested hypotheses, shown in 15 rows (three pairs merged), H11 is shown as a finding and H18 goes to backup. Scoreboard for slide 15: 6 supported, 7 rejected, 2 split (H13 + H15: helps one track, hurts the other; H20: lifts the 5% design, but the gap stays).
 
 | # | Hypothesis | Verdict | Slide |
 |---|---|---|---|
@@ -48,12 +48,12 @@ Show the hypothesis as the title or subtitle of each iteration slide, and the ve
 | H16 | Tuned, the 5% design matches full fine-tuning | Rejected: gap of 1.7 to 2.1 at equal epochs and equal budget | 14 |
 | H17 | Testing above the training size helps (FixRes) | Supported: +1.61 to +1.71, no retraining | 12 |
 | H19 | Training at a higher resolution beats only testing at it | Supported: +2.02, the largest single gain | 12 |
+| H20 | Training at 288 px lifts the 5% design too, and so changes the track gap | Split: +1.95 for the 5% design (77.94 at 288 px), as much as full FT, so the gap stays at 1.75 | 14 |
 
 Not shown as hypotheses:
 
 - **H11 (finding, slide 9):** training the head alone gives about 70% of the gain over zero-shot, the adapters the other 30% (donut). It is a measurement that could not have been rejected, so no verdict stamp.
 - **H18 (backup):** averaging two full fine-tuning models gives +0.39 for twice the inference cost. Not an adaptation method; it stays in the "rejected" bullet of slide 11.
-- **H20 (limitation, slide 14):** the 5% design was never trained at 288 px, so the 80.45 against 75.99 gap overstates the difference between the tracks.
 
 ## Design considerations (slide 4, and one caption per design slide)
 
@@ -129,28 +129,30 @@ Each finding: what we saw, our explanation, how sure we are.
 | Model | 224 | 288 | 320 | 352 | 384 | 416 |
 |---|---|---|---|---|---|---|
 | 5% (`imp_trivialaug`, trained at 224) | 74.28 | **75.99** | 75.28 | 74.06 | | |
+| 5% (`imp_trivialaug_288`, trained at 288) | | **77.94** | | | | |
 | Full FT (`full_ft_llrd_288`, trained at 288) | | 79.69 | 80.14 | **80.45** | 79.91 | 79.06 |
 
 - **Testing larger:** random training crops make objects look larger than in a centred test crop, so testing at a larger size matches the object scale the model learned: +1.71 (5%), +1.61 (full FT) at 288 px with no retraining.
-- **Training larger:** +2.02 over only testing at 288 px. Fine-grained classes differ in small details that 224 px loses.
+- **Training larger:** +2.02 (full FT) and +1.95 (5%) over only testing at 288 px. Fine-grained classes differ in small details that 224 px loses. Larger test sizes for the 5% model trained at 288 px are not scored yet.
 - **Caveat:** 352 px was chosen on the same hold-out it was scored on, so 80.45 is slightly optimistic.
 - **Chosen test sizes:** full FT at 320 px (80.14, within 0.31 of the best, about 17% less compute than 352); the 5% model at 288 px, its best size and the only size above 224 at which AdaptFormer alone was measured.
 
-### 6. Tracks: full fine-tuning wins, against the brief's expectation (slide 14; H16, limitation H20)
+### 6. Tracks: full fine-tuning wins, against the brief's expectation (slide 14; H16, H20)
 
 | Tuned | 5% | Full FT |
 |---|---|---|
 | 10 epochs, 224 px test | 74.28 | 76.06 |
 | 10 epochs, 288 px test | 75.99 | 77.67 |
 | Whole budget, 288 px test | 75.99 | 77.89 |
-| Trained at 288 px, best test size | not run | 80.45 |
+| Trained at 288 px, 288 px test | 77.94 | 79.69 |
+| Trained at 288 px, best test size | not scored yet | 80.45 (352 px) |
 | Params stored per task, incl. head | 12M | 93.5M |
 | Final model's hold-out twin, at the submitted test size | 75.62 (AdaptFormer alone, 288 px) | 80.14 (320 px) |
 | Latency, batch 1, 224 px | 9.5 ms (AdaptFormer alone; combined 11.8) | 7.1 ms |
 | Training, 48 GB-equivalent | 1.19 h | 1.67 h (288 px) |
 
 - **The brief expected** PEFT to win with small data. Possible reasons it did not, here: full fine-tuning was regularised just as carefully (label smoothing, slow head, layer-wise decay), so it did not overfit as feared; 450k images is not small overall; and the backbone was already close to the task.
-- **Fair comparison:** the gap of about 2 points holds at equal epochs and equal budget. The 80.45 against 75.99 overstates it, because the 5% design has not been trained at 288 px (H20).
+- **Fair comparison:** the gap of about 2 points holds at equal epochs, at equal budget and at equal training size: trained and tested at 288 px it is 1.75 (79.69 against 77.94, H20). Training at 288 px lifts both tracks by about 2 points, so resolution and method are separate effects.
 
 ## Model selection process (slide 11)
 
@@ -171,6 +173,7 @@ Each finding: what we saw, our explanation, how sure we are.
 | 4. Regulariser | Does anything add more? | TrivialAugment + random erasing (tie, free at inference) | 74.28 |
 | 5. Test size | Which size to score at? | 288 px | 75.99 |
 | 6. Design re-check | Does the tuned recipe separate the designs? | AdaptFormer alone (tie: -0.37 at 288 px; about 17% faster) | 75.62 at 288 px |
+| 6b. Training size | Does training at 288 px help the 5% design? | Yes: +1.95 (combined design, run 42) | 77.94 at 288 px |
 | 7. Final model | Retrain on all 45 images per class | `final_5pct_adaptformer` (run 43; no hold-out, so no local score); submitted at 288 px | - |
 
 ### The funnel, full fine-tuning track
