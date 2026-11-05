@@ -912,6 +912,8 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 49 | `imp_adaptformer_only_288` | | run 36 trained at 288 px: does AdaptFormer alone tie the combined design at the final resolution (against run 42)? A100 40 GB (about 1.8 h); then `--sizes 288 320` | | open |
 | 50 | `abl_lora_r8` | | `abl_lora_only` with rank 8 (0.34%): H1 at equal epochs and lr, without the confound of `lora_r8_full`. A100 40 GB (about 1.2 h) | | open |
 | 51 | `imp_bitfit` | | BitFit (about 0.12%) with the `imp_trivialaug` recipe, bias lr 5e-4, head 5e-5: a point between the linear probe and the 5% design. A100 40 GB (about 1.3 h) | | open |
+| 52 | `imp_head_delay` | | novel idea: `imp_trivialaug` with the head frozen at its class-mean start for the first epoch (`head_delay_epochs: 1`); tests the H9 explanation that an early-fitting head starves the adapters. A100 40 GB (about 1.4 h); compare with run 26 (74.28) | | open |
+| 53 | `imp_ls_neighbours` | | novel idea: `imp_trivialaug` with label smoothing spread over each class's 20 nearest classes (`ls_neighbours: 20`) instead of all 10,000. A100 40 GB (about 1.4 h); compare with run 26 (74.28) | | open |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
 

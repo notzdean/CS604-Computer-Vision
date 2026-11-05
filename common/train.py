@@ -44,6 +44,12 @@ DEFAULTS = dict(
     head_init_from=None,      # name of a finished run in the same runs folder: copy its trained head (e.g. a linear probe)
     init_from=None,           # name of a finished run in the same runs folder: start from ALL its trained weights
                               # (adapters + head), e.g. a short fine-tune at a larger train_size (FixRes)
+    head_delay_epochs=0,      # >0: the head stays at its initial weights for this many epochs (only the adapters
+                              # learn), then joins with its own short warm-up. Tests whether an early-fitting head
+                              # starves the adapters of learning signal (H9). 0 = off.
+    ls_neighbours=0,          # >0: label smoothing spreads its mass over each class's k most similar classes (cosine of
+                              # the class-mean head rows at the start) instead of over all classes. Needs
+                              # label_smoothing > 0 and head_init (class means); not with Mixup / CutMix. 0 = off.
     precision="auto", num_workers=None, eval_batch_size=256, seed=0, holdout_per_class=data.HOLDOUT_PER_CLASS,
     eval_every_epochs=1, ckpt_every_steps=2000, log_every=50,
     out_dir=None, results_csv="results/results.csv",
@@ -125,7 +131,7 @@ def make_groups(model, lr, head_mult, wd, layer_decay=None):
     groups = []
     for (is_head, decay, lid), ps in buckets.items():
         base = lr * (head_mult if is_head else 1.0) * (layer_decay ** (n_layers + 1 - lid) if layer_decay else 1.0)
-        groups.append(dict(params=ps, weight_decay=wd if decay else 0.0, base_lr=base, lr=base))
+        groups.append(dict(params=ps, weight_decay=wd if decay else 0.0, base_lr=base, lr=base, is_head=is_head))
     return groups
 
 
@@ -226,7 +232,34 @@ def main(argv):
     elif cfg["head_init"] and not ck:
         init = lambda m: ncm_head_init(m, train_rows, device, cfg["head_init_per_class"], workers=workers, amp=amp,
                                        scale=cfg["head_init_scale"], size=size)
+
+    nbrs = None                              # ls_neighbours: [num_classes, k] indices of each class's nearest classes
+    nbrs_path = f"{out}/neighbours.pt"
+    if cfg["ls_neighbours"]:
+        if not cfg["label_smoothing"] or cfg["mixup_alpha"] or cfg["cutmix_alpha"]:
+            sys.exit("ls_neighbours needs label_smoothing > 0 and no Mixup / CutMix")
+        if ck:                               # resumed: reuse the neighbours chosen at the start of the run
+            nbrs = torch.load(nbrs_path).to(device)
+        elif not (cfg["head_init"] and init is not None and not cfg["head_init_from"] and not cfg["init_from"]):
+            sys.exit("ls_neighbours needs head_init (class means): the neighbours come from the class-mean head")
+        else:
+            ncm_init = init
+            def init(m):                     # class-mean head init, then neighbours from its rows (= class means)
+                out_init = ncm_init(m)
+                w = F.normalize(m.head.weight.detach().float(), dim=1)
+                k, idx = cfg["ls_neighbours"], []
+                for a in range(0, len(w), 1024):
+                    sim = w[a:a + 1024] @ w.T
+                    sim[torch.arange(len(sim)), torch.arange(a, a + len(sim))] = -2.0     # exclude the class itself
+                    idx.append(sim.topk(k, dim=1).indices)
+                nbrs_box[0] = torch.cat(idx)
+                return out_init
+            nbrs_box = [None]
     model = build_model(cfg, init_head=init).to(device)
+    if cfg["ls_neighbours"] and nbrs is None:
+        nbrs = nbrs_box[0].to(device)
+        torch.save(nbrs.cpu(), nbrs_path)
+        print(f"label smoothing over each class's {cfg['ls_neighbours']} nearest classes (saved to {nbrs_path})")
     if init_state is not None:
         missing, unexpected = model.load_state_dict(init_state, strict=False)
         assert not unexpected, unexpected
@@ -255,6 +288,11 @@ def main(argv):
         step, total_steps, zero_shot = ck["step"], ck["total_steps"], ck.get("zero_shot")
         print(f"resumed from step {step} (total {total_steps})")
     trainable = [p for p in model.parameters() if p.requires_grad]
+    head_params = [p for g in opt.param_groups if g.get("is_head") for p in g["params"]]
+    head_delay_steps = int(cfg["head_delay_epochs"] * spe)
+    if head_delay_steps:
+        print(f"head delay: the head stays at its initial weights for {head_delay_steps} steps "
+              f"({cfg['head_delay_epochs']} epochs), then joins with a {cfg['warmup_steps']}-step warm-up")
     ema = None
     if cfg["ema_decay"]:                     # EMA of the trainable weights only (the frozen backbone never changes)
         ema = [t.to(device) for t in ck["ema"]] if ck and ck.get("ema") else [p.detach().clone() for p in trainable]
@@ -299,8 +337,11 @@ def main(argv):
                         pin_memory=device.type == "cuda", drop_last=True, prefetch_factor=4 if workers > 0 else None)
         model.train()
         for x, y in dl:
+            head_frozen = step < head_delay_steps
             for g in opt.param_groups:
                 g["lr"] = g["base_lr"] * lr_scale(step)
+                if g.get("is_head") and head_delay_steps and not head_frozen:   # head joins with its own warm-up
+                    g["lr"] *= min(1.0, (step - head_delay_steps + 1) / warm)
             x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
             if mixer:
                 x, y = mixer(x, y)
@@ -308,9 +349,17 @@ def main(argv):
                 logits = model(x)
             if mixer:
                 loss = torch.sum(-y * F.log_softmax(logits.float(), dim=1), dim=1).mean()
+            elif nbrs is not None:           # smoothing mass on the k nearest classes of the true class only
+                logp = F.log_softmax(logits.float(), dim=1)
+                eps = cfg["label_smoothing"]
+                loss = -((1 - eps) * logp.gather(1, y[:, None]).squeeze(1)
+                         + eps * logp.gather(1, nbrs[y]).mean(1)).mean()
             else:
                 loss = F.cross_entropy(logits.float(), y, label_smoothing=cfg["label_smoothing"])
             scaler.scale(loss).backward()
+            if head_frozen:                  # head delay: no gradient, so AdamW leaves the head (and its state) alone
+                for p in head_params:
+                    p.grad = None
             if cfg["grad_clip"]:
                 scaler.unscale_(opt)
                 torch.nn.utils.clip_grad_norm_(trainable, cfg["grad_clip"])

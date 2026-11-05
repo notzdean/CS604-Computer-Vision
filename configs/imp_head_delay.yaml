@@ -1,0 +1,23 @@
+# Novel idea 1, head delay: imp_trivialaug (74.28%) with ONE change: the classifier head stays at its class-mean
+# start for the first epoch (only the adapters learn), then joins with its own 200-step warm-up.
+# Why: a better head start ended lower three times (H9: -1.07, -1.03, -4.00), and a slower head helped most (H10).
+# Our explanation, so far untested: a head that fits the training images early takes the easy part of the loss and
+# leaves the adapters a weaker learning signal. Run 45 points the same way: the adapted features alone (class means)
+# reach 69.82%. If delaying the head helps, the explanation gains direct support; if not, it is probably wrong.
+# This is the opposite of LP-FT (Kumar et al., 2022), which trains the head FIRST.
+# GPU: A100 40 GB preferred (about 1.4 h, as imp_trivialaug). Compare at 224 px with imp_trivialaug.
+name: imp_head_delay
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+auto_augment: trivial
+re_prob: 0.25
+head_delay_epochs: 1
+notes: "imp_trivialaug + head frozen at its class-mean start for the first epoch"

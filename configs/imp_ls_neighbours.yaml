@@ -1,0 +1,23 @@
+# Novel idea 2, label smoothing towards similar classes: imp_trivialaug (74.28%) with ONE change: the 10% smoothing
+# mass goes to each class's 20 most similar classes (cosine of the class means, from the head init at the start)
+# instead of being spread evenly over all 10,000 classes.
+# Why: label smoothing was one of the largest gains (H5: +1.12), and fine-grained mistakes concentrate on look-alike
+# classes. Uniform smoothing puts 99.8% of its mass on classes the model would never confuse. If this helps, the
+# SHAPE of the smoothing matters, not only its amount; a tie says the amount is what matters.
+# The neighbour list is saved as neighbours.pt in the run folder (and reused on resume).
+# GPU: A100 40 GB preferred (about 1.4 h, as imp_trivialaug). Compare at 224 px with imp_trivialaug.
+name: imp_ls_neighbours
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+auto_augment: trivial
+re_prob: 0.25
+ls_neighbours: 20
+notes: "imp_trivialaug + label smoothing over each class's 20 nearest classes"
