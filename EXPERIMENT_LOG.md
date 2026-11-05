@@ -67,6 +67,9 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 | H2 | Adapting both attention and FFN beats adapting either alone at the same 5% | `abl_combined` 71.05 | `abl_lora_only` 70.76, `abl_adaptformer_only` 71.09 | **Rejected**: a tie |
 | H3 | The tie in H2 hid a difference that the tuned recipe would reveal, so AdaptFormer alone could match the combined design | `imp_adaptformer_only` 73.78, 75.62 at 288 px (run 36) | `imp_trivialaug` 74.28, 75.99 at 288 px | **Supported (a tie)**: -0.50 at 224 px and -0.37 at 288 px, both within noise; AdaptFormer alone is faster (9.5 against 11.8 ms at 224 px) |
 | H4 | Late blocks carry the fine-grained adaptation, so the 5% is best spent on the last 6 | `abl_adaptformer_last6` 70.17 | `abl_adaptformer_only` 71.09 | **Rejected**: -0.92 |
+| H1 (re-test) | H1 without the confound: at equal epochs and lr, rank 116 beats rank 8 | `abl_lora_r8` (run 50, 0.34%, lr 3e-4, 10 epochs) | `abl_lora_only` 70.76 | **Open** |
+| H3 (288 px) | AdaptFormer alone still ties the combined design when both train at 288 px | `imp_adaptformer_only_288` (run 49) | `imp_trivialaug_288` 77.94 at 288 px | **Open** |
+| H23 | Even the biases alone (BitFit, 0.12%) recover most of the adapters' gain over the linear probe | `imp_bitfit` (run 51) | `abl_linear_probe` 62.62; `imp_trivialaug` 74.28 | **Open**: "most" = above 68.45, the midpoint |
 
 ![Where should the 5% go?](results/hypothesis_charts/h1_h4_design.png)
 
@@ -78,6 +81,7 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 | H6 | A lower learning rate helps and a higher one hurts | `tune_lr_low` 72.37 (2e-4), `tune_lr_high` 69.28 (5e-4) | `abl_combined` 71.05 (3e-4) | **Supported**: +1.32 and -1.77 |
 | H7 | Label smoothing and a lower learning rate add up | `tune_ls_lr2e4` 72.35 | `tune_label_smoothing` 72.17, `tune_lr_low` 72.37 | **Rejected**: no more than either alone, so they fix the same problem |
 | H8 | With label smoothing, a still lower learning rate keeps helping | `tune_ls_lr1e4` 73.02, `tune_ls_lr5e5` 73.52; `tune_ls_lr3e5` skipped | `tune_ls_lr2e4` 72.35 | **Supported down to 1e-4** (+0.67); 5e-5 adds a further +0.50, at the noise bar |
+| H22 | The shape of the smoothing matters, not only its amount: smoothing towards the 20 most similar classes beats uniform smoothing | `imp_ls_neighbours` (run 53) | `imp_trivialaug` 74.28 | **Open** |
 
 ![Is over-confidence the limit?](results/hypothesis_charts/h5_h8_overconfidence.png)
 
@@ -88,6 +92,7 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 | H9 | A better head start gives a better final model | `tune_head_init` 69.98; `tune_ls_lr1e4_init43` 71.99; `imp_head_from_lp` 70.28. Run 20 not run | `abl_combined` 71.05; `tune_ls_lr1e4` 73.02; `imp_trivialaug` 74.28 | **Rejected** three times: -1.07, -1.03, -4.00, even though zero-shot rises to 43.30 in the first two |
 | H10 | The head should learn more slowly than the adapters | `tune_head_lr_half` 74.14, `tune_head_lr_quarter` 74.02, `tune_head_lr_double` 71.75 | `tune_ls_lr1e4` 73.02 (same rate) | **Supported**: +1.12, +1.00, -1.27; the most sensitive setting found |
 | H11 | Training the head alone gives most of the gain over zero-shot, and the adapters add the rest | `abl_linear_probe` 62.62 | zero-shot 35.70; `tune_ls_lr1e4` 73.02 | **Supported**: about 70% head, 30% adapters |
+| H21 | H9 fails because an early-fitting head starves the adapters, so holding the head at its class-mean start for the first epoch helps | `imp_head_delay` (run 52) | `imp_trivialaug` 74.28 | **Open**: the reverse of LP-FT |
 
 ![What does the head do?](results/hypothesis_charts/h9_h11_head.png)
 
@@ -107,6 +112,7 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 |---|---|---|---|---|
 | H15 | Layer-wise lr decay helps full fine-tuning | `full_ft_llrd` 76.26 | `full_ft_ls_headlow` 75.75 (both about 18 epochs) | **Supported, modestly**: +0.51. The earlier +2.28 against `full_ft_ls` also included the slower head and twice the epochs |
 | H16 | Tuned, the 5% design matches full fine-tuning | `imp_trivialaug` 74.28 and `imp_trivialaug_fullbudget` 74.18 (75.99 at 288 px for both) | `full_ft_llrd_10ep` 76.06 (77.67) and `full_ft_llrd` 76.26 (77.89) | **Rejected**: a gap of 1.7 to 2.1 at equal epochs and at equal budget. The earlier tie (74.14 against `full_ft_ls` 73.98) was against untuned full fine-tuning. All at a 224 px training size |
+| H24 | Run-to-run variation (another seed) stays under the 0.5-point noise bar used throughout | `imp_trivialaug_288_s1` (run 47), `full_ft_llrd_288_s1` (run 48) | `imp_trivialaug_288` 77.94, `full_ft_llrd_288` 79.69 | **Open**: also checks that the 1.75-point gap is real |
 
 ![Full fine-tuning and the track comparison](results/hypothesis_charts/h15_h16_tracks.png)
 
@@ -125,7 +131,7 @@ Not listed: `final_5pct_trivialaug`, `final_full_ft_llrd`, `final_full_ft_llrd_2
 
 ## Proposed architecture
 
-Written 31 Oct 2026 from the hypothesis findings above (H1 to H20). Both tracks use the same base model, `vit_base_patch16_224.augreg2_in21k_ft_in1k`, with its head replaced by a 10,000-class linear head (7.69M params, not counted in the trainable %). Scores are hold-out top-1.
+Written 31 Oct 2026 from the hypothesis findings above (H1 to H20; H21 to H24 were added on 5 Nov and are open). Both tracks use the same base model, `vit_base_patch16_224.augreg2_in21k_ft_in1k`, with its head replaced by a 10,000-class linear head (7.69M params, not counted in the trainable %). Scores are hold-out top-1.
 
 ### Efficient-adaptation track (under 5%)
 

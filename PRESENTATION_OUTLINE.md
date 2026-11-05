@@ -55,6 +55,17 @@ Not shown as hypotheses:
 - **H11 (finding, slide 9):** training the head alone gives about 70% of the gain over zero-shot, the adapters the other 30% (donut). It is a measurement that could not have been rejected, so no verdict stamp.
 - **H18 (backup):** averaging two full fine-tuning models gives +0.39 for twice the inference cost. Not an adaptation method; it stays in the "rejected" bullet of slide 11.
 
+Open (added 5 Nov; add a row above with its verdict when the result is in, and update the scoreboard):
+
+| # | Hypothesis | Run | Compared against | Slide |
+|---|---|---|---|---|
+| H1 re-test | At equal epochs and lr, rank 116 beats rank 8 (removes the H1 caveat) | 50 `abl_lora_r8` | `abl_lora_only` 70.76 | 6, 7 |
+| H3 at 288 px | AdaptFormer alone still ties the combined design at the final resolution | 49 `imp_adaptformer_only_288` | `imp_trivialaug_288` 77.94 | 6 |
+| H21 | An early-fitting head starves the adapters, so delaying the head helps (novel; the reverse of LP-FT) | 52 `imp_head_delay` | `imp_trivialaug` 74.28 | 9 |
+| H22 | Smoothing towards similar classes beats uniform smoothing (novel) | 53 `imp_ls_neighbours` | `imp_trivialaug` 74.28 | 8 |
+| H23 | The biases alone (BitFit, 0.12%) recover most of the adapters' gain over the linear probe | 51 `imp_bitfit` | `abl_linear_probe` 62.62, `imp_trivialaug` 74.28 | 7 |
+| H24 | Another seed moves the result by less than the 0.5-point noise bar | 47, 48 (seed 1 of runs 42, 39) | runs 42 and 39 | 14 |
+
 ## Design considerations (slide 4, and one caption per design slide)
 
 | Consideration | What we weighed | How it shaped the design |
