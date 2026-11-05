@@ -1,0 +1,22 @@
+# Design check at the final resolution: imp_adaptformer_only (73.78%, 75.62% tested at 288 px) with ONE change:
+# train at 288 px. Compare with imp_trivialaug_288 (run 42, LoRA + AdaptFormer: 77.94% at 288 px, 78.75% at 320 px).
+# Why: AdaptFormer alone tied the combined design at a 224 px training size (H2 + H3: -0.50 / -0.37) and is faster
+# (9.5 against 11.8 ms), but the submitted 5% model is trained at 288 px, where only the combined design was measured.
+# If this ties run 42 again, the report can say the cheaper design would have done as well at the final resolution.
+# GPU: A100 40 GB only (budget 2.4 h; about 1.8 h). On an 80 GB card (budget 1.2 h) it would be stopped early.
+# After training: python -m common.evaluate <run> --sizes 288 320
+name: imp_adaptformer_only_288
+method: adaptformer
+method_args: {bottleneck: 232, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+auto_augment: trivial
+re_prob: 0.25
+train_size: 288
+notes: "imp_adaptformer_only trained at 288 px (design check at the final resolution)"

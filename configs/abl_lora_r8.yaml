@@ -1,0 +1,18 @@
+# H1 without the confound: LoRA rank 8 (0.34%, the brief's LoRA) under EXACTLY the settings of the equal-budget
+# ablation trio (abl_lora_only / abl_adaptformer_only / abl_combined: lr 3e-4, 10 epochs, no label smoothing).
+# Only the rank differs from abl_lora_only (116 -> 8; alpha / r = 2 in both).
+# Why: H1 compared the trio (70.76 to 71.09) with lora_r8_full (68.78), which also ran 7.02 epochs at lr 5e-4, so
+# "more adapter parameters help" was confounded with the training length and learning rate. This run isolates size.
+# GPU: A100 40 GB preferred (about 1.2 h); on an 80 GB card (budget 1.2 h) it may be stopped just short of 10 epochs.
+name: abl_lora_r8
+method: lora
+method_args: {r: 8, alpha: 16, dropout: 0.0, target_modules: [qkv]}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 3.0e-4
+head_lr_mult: 1.0
+weight_decay: 0.01
+label_smoothing: 0.0
+head_init: true
+notes: "abl_lora_only with rank 8 (0.34%): H1 at equal epochs and lr"

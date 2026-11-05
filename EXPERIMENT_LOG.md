@@ -842,6 +842,17 @@ Hold-out top-1 by epoch:
 - **Interpretation:** a tie, so the trained head no longer overfits in a way a parameter-free classifier can correct: the two make largely the same errors, in line with H12 (the recipe has converged). Not used.
 - **By-product:** class means on the frozen pre-trained features scored 43.30% (224 px, 43 images per class, zero-shot); on the adapted features they score 69.82% (288 px). The test sizes differ, so the gap of about 25 points is approximate, but most of the adaptation gain is already in the features before any trained head. This qualifies H11 (head alone on frozen features 62.62%): the adapters' main effect is a better feature space, which the head then reads out.
 
+### Latency of the submitted models, run 46 (5 Nov 2026, lilian; no training)
+
+- **Setup:** `python -m common.latency <full_ft_llrd_288> <imp_trivialaug_288> --sizes 288 320 352` (new script): batch 1, bf16, A100 40 GB with nothing else on the GPU; each (model, size) timed 5 times, each time the median of 100 passes after 20 warm-up passes, with models and sizes interleaved. Median (min to max), ms:
+
+  | Model | 288 px | 320 px | 352 px |
+  |---|---|---|---|
+  | Full fine-tuning (`full_ft_llrd_288`, run 39) | 7.0 (7.0 to 7.3) | **7.3** (7.1 to 7.4) | 7.1 (7.0 to 7.2) |
+  | 5%, LoRA + AdaptFormer (`imp_trivialaug_288`, run 42) | 11.5 (11.5 to 11.6) | **11.8** (11.7 to 11.9) | 11.7 (11.6 to 11.9) |
+
+- **Interpretation:** the earlier single readings of 16 to 40 ms at 320 or 352 px (runs 39, 42, 44 and the run 22 check) were disturbances during measurement, not a cost of the size: repeated, every reading falls within 0.4 ms. At batch 1 the A100 is limited by the number of operations launched, not by the number of patches, so 288 to 352 px cost the same. The 5% model is about 60% slower (11.8 against 7.3 ms) because each block runs two extra modules (unmerged LoRA on `qkv`, AdaptFormer next to the FFN). Use these numbers in the report: 7.3 and 11.8 ms at the submitted size of 320 px.
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -895,6 +906,12 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 43 | `final_5pct_adaptformer` | | final 5% model: run 36's recipe (AdaptFormer only, b=232; 73.78%, 75.62% at 288 px) on all 45 images per class (`holdout_per_class: 0` is in the config); replaces `final_5pct_trivialaug` for the test submission because AdaptFormer alone ties the combined design and is about 17% faster. No hold-out. A100 40 GB (about 1.4 h); submit at `--size 288` | lilian | superseded 5 Nov: training at 288 px (run 42) is worth +1.95, and run 42 is submitted instead; stop it if still running |
 | 44 | `imp_trivialaug_fixres288` | | run 26 + 2 epochs at 288 px from its trained weights (`init_from`); the cheap alternative to run 42 | lilian | done 5 Nov: 77.28% at 288 px (77.73% at 320 px), +1.33 for 0.34 h; 0.66 below run 42 at 288 px, 1.02 at 320 px |
 | 45 | no training | | head + class-mean ensemble on `imp_trivialaug` at 288 px: `python -m common.proto_ensemble <run folder> --size 288` | lilian | done 5 Nov: 75.84% cross-fitted against 75.99% head only (-0.15), a tie; class means alone 69.82% |
+| 46 | no training | | latency of the submitted models: `python -m common.latency <run 39> <run 42> --sizes 288 320 352` | lilian | done 5 Nov: 7.3 and 11.8 ms at 320 px; the earlier high readings were disturbances |
+| 47 | `imp_trivialaug_288_s1` | | run 42 with `seed=1` (`CONFIG imp_trivialaug_288`, `RUN imp_trivialaug_288_s1`, `EXTRA seed=1`): measures run-to-run variation of the 5% track. A100 40 GB (about 2 h); then `--sizes 288 320` | | open |
+| 48 | `full_ft_llrd_288_s1` | | run 39 with `seed=1` (`CONFIG full_ft_llrd_288`, `RUN full_ft_llrd_288_s1`, `EXTRA seed=1`): run-to-run variation of full fine-tuning. A100 40 GB (about 2 h); then `--sizes 288 320` | | open |
+| 49 | `imp_adaptformer_only_288` | | run 36 trained at 288 px: does AdaptFormer alone tie the combined design at the final resolution (against run 42)? A100 40 GB (about 1.8 h); then `--sizes 288 320` | | open |
+| 50 | `abl_lora_r8` | | `abl_lora_only` with rank 8 (0.34%): H1 at equal epochs and lr, without the confound of `lora_r8_full`. A100 40 GB (about 1.2 h) | | open |
+| 51 | `imp_bitfit` | | BitFit (about 0.12%) with the `imp_trivialaug` recipe, bias lr 5e-4, head 5e-5: a point between the linear probe and the 5% design. A100 40 GB (about 1.3 h) | | open |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
 
