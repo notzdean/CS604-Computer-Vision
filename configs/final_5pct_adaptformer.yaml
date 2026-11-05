@@ -1,0 +1,24 @@
+# Final 5% model (queue run 43): imp_adaptformer_only (73.78% hold-out, 75.62% at 288 px) trained on ALL 45 images per
+# class (holdout_per_class 0): 4.7% more training data. Replaces final_5pct_trivialaug (LoRA + AdaptFormer) as the
+# 5% model to submit.
+# Why this design: AdaptFormer alone ties the combined design on the tuned recipe (-0.50 at 224 px, -0.37 at 288 px,
+# both within the 0.5 noise bar; H2 + H3), and it is simpler (one module per block) and about 17% faster (9.7 against
+# 11.7 ms at 288 px). Team rule: among options within 0.5 points of the best, take the cheaper one.
+# No hold-out: the run cannot be scored locally (hold-out columns stay empty). Submit at --size 288, the size its
+# hold-out twin was measured at.
+# GPU: A100 40 GB (budget 2.4 h; about 1.4 h). On an 80 GB card (budget 1.2 h) it would be stopped early.
+name: final_5pct_adaptformer
+method: adaptformer
+method_args: {bottleneck: 232, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+auto_augment: trivial
+re_prob: 0.25
+holdout_per_class: 0
+notes: "final 5% model: imp_adaptformer_only on all 45 images per class (no hold-out, A100 40 GB)"

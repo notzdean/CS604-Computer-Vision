@@ -36,6 +36,7 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | imp_ema | `tune_head_lr_half` + weight EMA 0.9998 | `imp_ema` | 74.19 | 4.998 | 7.69M (trained) | 1.27 (A100 40 GB) | not recorded here |
 | imp_mixup | `tune_head_lr_half` + Mixup 0.8 / CutMix 1.0, 15 epochs | `imp_mixup` | 73.97 | 4.998 | 7.69M (trained) | 1.90 (A100 40 GB) | not recorded here |
 | imp_trivialaug | `tune_head_lr_half` + TrivialAugment + random erasing 0.25 | `imp_trivialaug` | 74.28 | 4.998 | 7.69M (trained) | 1.43 (A100 40 GB) | not recorded here |
+| imp_adaptformer_only | `imp_trivialaug` with AdaptFormer only (b=232, no LoRA), same 4.998% (run 36) | `imp_adaptformer_only` | 73.78 (75.62 at 288 px) | 4.998 | 7.69M (trained) | 1.36 (A100 40 GB) | not recorded here |
 | imp_trivialaug at test size 288 | same model, scored at 288 px (no retraining; run 22) | `imp_trivialaug` + `--sizes 288` | **75.99** (76.23 with mirror averaging) | 4.998 | 7.69M (trained) | - | not recorded here |
 | final_5pct_trivialaug | final 5% model: `imp_trivialaug` recipe on all 45 images per class (no hold-out) | `final_5pct_trivialaug` | - (no hold-out; leaderboard only) | 4.998 | 7.69M (trained) | 1.36 (A100 40 GB) | not recorded here |
 | full_ft_llrd | Full fine-tuning + label smoothing + head at the backbone's rate + layer-wise lr decay 0.75, full 2.4 h budget (18.2 epochs) | `full_ft_llrd` | **76.26** | 100 | 7.69M (trained) | 2.27 (A100 40 GB) | not recorded here |
@@ -54,7 +55,7 @@ Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
 ## Hypotheses and the runs that tested them
 
-Written 31 Oct 2026, from the config notes, the queue and the run sections below. Most of these were stated as questions when the runs were planned, so the wording here is a reconstruction, not a pre-registration. All numbers are hold-out top-1 at 224 px unless a size is given; differences under about 0.5 points are within noise. Details are in each run's section under Runs. Runs 34 and 36 are not in `results/results.csv` yet. The charts show each tested run against its baseline; redraw them with `python results/plot_hypotheses.py`.
+Written 31 Oct 2026, from the config notes, the queue and the run sections below. Most of these were stated as questions when the runs were planned, so the wording here is a reconstruction, not a pre-registration. All numbers are hold-out top-1 at 224 px unless a size is given; differences under about 0.5 points are within noise. Details are in each run's section under Runs. Run 34 is not in `results/results.csv` yet. The charts show each tested run against its baseline; redraw them with `python results/plot_hypotheses.py`.
 
 ### Where should the 5% go? (design)
 
@@ -62,7 +63,7 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 |---|---|---|---|---|
 | H1 | More adapter parameters give higher accuracy than the brief's small LoRA | `abl_lora_only` 70.76 (r=116), `abl_adaptformer_only` 71.09, `abl_combined` 71.05 | `lora_r8_full` 68.78 (0.34%; 7.02 epochs, against 10) | **Supported**, +2 to +2.3, though the length also differs |
 | H2 | Adapting both attention and FFN beats adapting either alone at the same 5% | `abl_combined` 71.05 | `abl_lora_only` 70.76, `abl_adaptformer_only` 71.09 | **Rejected**: a tie |
-| H3 | The tie in H2 hid a difference that the tuned recipe would reveal, so AdaptFormer alone could match the combined design | `imp_adaptformer_only` 73.78 (run 36) | `imp_trivialaug` 74.28 | **Inconclusive**: -0.50, at the noise bar; 9.5 against 11.8 ms. 288 px not scored yet |
+| H3 | The tie in H2 hid a difference that the tuned recipe would reveal, so AdaptFormer alone could match the combined design | `imp_adaptformer_only` 73.78, 75.62 at 288 px (run 36) | `imp_trivialaug` 74.28, 75.99 at 288 px | **Supported (a tie)**: -0.50 at 224 px and -0.37 at 288 px, both within noise; AdaptFormer alone is faster (9.5 against 11.8 ms at 224 px) |
 | H4 | Late blocks carry the fine-grained adaptation, so the 5% is best spent on the last 6 | `abl_adaptformer_last6` 70.17 | `abl_adaptformer_only` 71.09 | **Rejected**: -0.92 |
 
 ![Where should the 5% go?](results/hypothesis_charts/h1_h4_design.png)
@@ -142,7 +143,7 @@ Both trained updates start at zero (`lora_B`, `up`), so training starts from the
 |---|---|---|
 | How much to adapt | Spend the whole 5% | H1: +2 to +2.3 over LoRA r=8, though that run was also shorter |
 | Where | Every block, not only the last ones | H4: the last 6 blocks alone lose 0.92 |
-| Which adapter | LoRA + AdaptFormer | H2 and H3 do not separate the designs: a tie, then -0.50 for AdaptFormer alone, at the noise bar. We keep the combined design because it has the nominal best score and its final model is trained; AdaptFormer alone is the simpler, faster alternative (9.5 against 11.8 ms) |
+| Which adapter | LoRA + AdaptFormer | H2 and H3 do not separate the designs: a tie untuned, and again on the tuned recipe (AdaptFormer alone -0.50 at 224 px, -0.37 at 288 px). We keep the combined design because it has the nominal best score and its final model is trained; AdaptFormer alone is the simpler, faster alternative (9.5 against 11.8 ms) |
 | Head start | Class averages from 10 images per class, calibrated | H9: stronger starts lost 1.03 to 4.00 |
 | Head learning rate | 5e-5, half the adapters' 1e-4 | H10: the most sensitive setting on this track |
 | Loss | Cross-entropy with label smoothing 0.1 | H5: +1.12 |
@@ -706,6 +707,15 @@ Hold-out top-1 by epoch:
 - **Decision:** the final 5% model stays at 10 epochs (`final_5pct_trivialaug`); training it longer would not help.
 - **Log:** `results/imp_trivialaug_fullbudget/log.jsonl`, `summary.json`.
 
+### imp_adaptformer_only, run 36 (Nicole; scored at 288 px on 5 Nov 2026)
+
+- **Setup:** `imp_trivialaug` (run 26) with one change: AdaptFormer only (bottleneck 232, every block's FFN) instead of LoRA r=12 + AdaptFormer b=208, at the same 4.998% (4,288,224 adapter params). Tests H3: does the tuned recipe separate the designs that tied untuned (H2)?
+- **Result:** hold-out top-1 **73.78%** (-0.50 against run 26), top-5 89.97, loss 1.332. At 288 px (no retraining) **75.62%** (-0.37 against run 26's 75.99), top-5 91.05, loss 1.244; with mirror averaging 75.97% (against 76.23).
+- **Efficiency:** latency 9.5 ms at 224 px and 9.7 ms at 288 px (batch 1), against 11.4 / 11.7 ms for the combined design: about 17% faster, because there is no second module per block. Peak VRAM 6.5 GiB. Train 1.36 h on an A100 40 GB = 1.13 h in 48 GB-equivalent, 10 epochs.
+- **Interpretation:** the gap is within noise at both sizes, and the test-size gain is the same (+1.84 against +1.71). So the tie from H2 holds on the tuned recipe: what matters at 5% is the budget and the recipe, not whether attention is adapted too.
+- **Decision:** the final 5% model stays the combined design (`final_5pct_trivialaug`, already trained, nominal best). In the report, present AdaptFormer alone as the equally accurate and faster alternative: LoRA's mergeability does not help here, because the combined model still carries the unmergeable AdaptFormer.
+- **Log:** `results/imp_adaptformer_only/log.jsonl`, `summary.json`.
+
 ### imp_head_from_lp, run 35 (30 Oct 2026, lilian)
 
 - **Why:** LP-FT (Kumar et al. 2022): train the head first, then the rest. Our head starts from class averages (35.7% zero-shot); the linear probe's trained head (run 17) starts at 62.6%, so the adapters should begin from a better point.
@@ -843,13 +853,14 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 33 | `imp_trivialaug_fullbudget` | | equal budget: `imp_trivialaug` filling the 2.4 h budget of an A100 40 GB (about 16 epochs), like `full_ft_llrd`. A100 40 GB only; then `--sizes 224 288` | Nicole | done 30 Oct: 74.18%, 75.99% at 288 px (16.9 epochs): no gain over 10 epochs; the gap to full fine-tuning at equal budget is 1.9 to 2.1 |
 | 34 | `imp_trivialaug_llrd` | | run 26 + layer-wise lr decay 0.75 on the adapters (the change that lifted full fine-tuning) | lilian (for Nicole) | claimed 30 Oct |
 | 35 | `imp_head_from_lp` | | run 26 with the head started from the linear probe's trained head (run 17, 62.6%): head first, then adapters (LP-FT). Needs `abl_linear_probe/final.pt` in the runner's runs folder | lilian | done 30 Oct: 70.28% (71.97% at 288 px), 4 points below run 26: the pre-fitted head overfits; keep the class-average head |
-| 36 | `imp_adaptformer_only` | | run 26 settings with AdaptFormer only (b=232): the simpler, faster design | Nicole | claimed 30 Oct |
+| 36 | `imp_adaptformer_only` | | run 26 settings with AdaptFormer only (b=232): the simpler, faster design | Nicole | done: 73.78% (-0.50 against run 26), 75.62% at 288 px (-0.37); a tie |
 | 37 | `final_full_ft_llrd` | | final full fine-tuning model: run 32's recipe (`full_ft_llrd_10ep`, 76.06%, 77.67% at 288 px) on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only. A100 40 GB preferred (about 1.2 h); submit at `--size 288` | lilian | done: trained cleanly (1.26 h, 10 epochs); submit at `--size 288` |
 | 38 | no training | | ensemble check: `python -m common.ensemble <full_ft_llrd folder> <full_ft_ls_headlow folder> --size 288` (`full_ft_llrd_10ep` was not on this Drive) | lilian | done: 78.30%, +0.39 over the best single model; below the 1-point bar, so no second seed for now |
 | 39 | `full_ft_llrd_288` | | run 32 trained at 288 px (`train_size: 288`), the unused half of the budget paying for more pixels. A100 40 GB only (at most about 2 h); then `--sizes 288 320 352`; compare with run 32 at its best test size (77.67%) | lilian | done 30 Oct: **79.69%** at 288 px, +2.02 over run 32 (A100 40 GB, 2.00 h); best run of either track; 80.45% tested at 352 px, the optimum (384 px 79.91%, 416 px 79.06%) |
 | 40 | `final_full_ft_llrd_288` | | final full fine-tuning model: run 39's recipe on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only. A100 40 GB only (about 2.0 h); replaces run 37 for the test submission | lilian | stopped early at 8.32 of 10 epochs (2.60 h): a second process ran in the same folder for part of the run. Model usable but not fully annealed; superseded by run 41 |
 | 41 | `final_full_ft_llrd_288_v2` | | clean re-run of run 40 (same config, new `RUN` name `final_full_ft_llrd_288_v2`); no hold-out, leaderboard only. A100 40 GB only | lilian | done: completed 10 epochs in 2.02 h, one process; the final full fine-tuning model; submit at `--size 288` |
 | 42 | `imp_trivialaug_288` | | H20: run 26 (`imp_trivialaug`, 74.28%, 75.99% at 288 px) trained at 288 px (`train_size: 288`), one change. A100 40 GB only (about 2.3 h); then `--sizes 288 320 352`; compare with run 26 at 288 px and with run 39 | lilian | open |
+| 43 | `final_5pct_adaptformer` | | final 5% model: run 36's recipe (AdaptFormer only, b=232; 73.78%, 75.62% at 288 px) on all 45 images per class (`holdout_per_class: 0` is in the config); replaces `final_5pct_trivialaug` for the test submission because AdaptFormer alone ties the combined design and is about 17% faster. No hold-out. A100 40 GB (about 1.4 h); submit at `--size 288` | lilian | open |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
 
