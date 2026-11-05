@@ -63,13 +63,13 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 
 | # | Hypothesis | Runs | Baseline | Verdict |
 |---|---|---|---|---|
-| H1 | More adapter parameters give higher accuracy than the brief's small LoRA | `abl_lora_only` 70.76 (r=116), `abl_adaptformer_only` 71.09, `abl_combined` 71.05 | `lora_r8_full` 68.78 (0.34%; 7.02 epochs, against 10) | **Supported**, +2 to +2.3, though the length also differs |
+| H1 | More adapter parameters give higher accuracy than the brief's small LoRA | `abl_lora_only` 70.76 (r=116), `abl_adaptformer_only` 71.09, `abl_combined` 71.05 | `lora_r8_full` 68.78 (0.34%; 7.02 epochs, against 10) | **Supported**, +2 to +2.3, though the length also differs; the re-test below isolates size: +1.04 |
 | H2 | Adapting both attention and FFN beats adapting either alone at the same 5% | `abl_combined` 71.05 | `abl_lora_only` 70.76, `abl_adaptformer_only` 71.09 | **Rejected**: a tie |
 | H3 | The tie in H2 hid a difference that the tuned recipe would reveal, so AdaptFormer alone could match the combined design | `imp_adaptformer_only` 73.78, 75.62 at 288 px (run 36) | `imp_trivialaug` 74.28, 75.99 at 288 px | **Supported (a tie)**: -0.50 at 224 px and -0.37 at 288 px, both within noise; AdaptFormer alone is faster (9.5 against 11.8 ms at 224 px) |
 | H4 | Late blocks carry the fine-grained adaptation, so the 5% is best spent on the last 6 | `abl_adaptformer_last6` 70.17 | `abl_adaptformer_only` 71.09 | **Rejected**: -0.92 |
-| H1 (re-test) | H1 without the confound: at equal epochs and lr, rank 116 beats rank 8 | `abl_lora_r8` (run 50, 0.34%, lr 3e-4, 10 epochs) | `abl_lora_only` 70.76 | **Open** |
+| H1 (re-test) | H1 without the confound: at equal epochs and lr, rank 116 beats rank 8 | `abl_lora_r8` 69.72 (run 50, 0.34%, lr 3e-4, 10 epochs) | `abl_lora_only` 70.76 | **Supported**: rank 116 is +1.04 over rank 8 at equal epochs and lr, above the noise bar. About half of H1's original +1.98 (against `lora_r8_full`) came from the length and lr: the same rank 8 gains +0.94 from 10 epochs at 3e-4 instead of 7 at 5e-4 |
 | H3 (288 px) | AdaptFormer alone still ties the combined design when both train at 288 px | `imp_adaptformer_only_288` 77.07 at 288 px (run 49) | `imp_trivialaug_288` 77.94 at 288 px | **Rejected**: -0.87, above the noise bar. At the final resolution the combined design earns its place; AdaptFormer alone is faster (9.8 against 12.6 ms) but outside the 0.5-point tie rule |
-| H23 | Even the biases alone (BitFit, 0.12%) recover most of the adapters' gain over the linear probe | `imp_bitfit` (run 51) | `abl_linear_probe` 62.62; `imp_trivialaug` 74.28 | **Open**: "most" = above 68.45, the midpoint |
+| H23 | Even the biases alone (BitFit, 0.12%) recover most of the adapters' gain over the linear probe | `imp_bitfit` 71.30 (run 51) | `abl_linear_probe` 62.62; `imp_trivialaug` 74.28 | **Supported**: `imp_bitfit` 71.30 (run 51), above the midpoint 68.45: 74% of the adapters' gain over the linear probe with 2.4% of their parameters (102,912, 0.12%), and no extra latency (7.4 ms). Still 2.98 below the 5% design |
 
 ![Where should the 5% go?](results/hypothesis_charts/h1_h4_design.png)
 
@@ -81,7 +81,7 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 | H6 | A lower learning rate helps and a higher one hurts | `tune_lr_low` 72.37 (2e-4), `tune_lr_high` 69.28 (5e-4) | `abl_combined` 71.05 (3e-4) | **Supported**: +1.32 and -1.77 |
 | H7 | Label smoothing and a lower learning rate add up | `tune_ls_lr2e4` 72.35 | `tune_label_smoothing` 72.17, `tune_lr_low` 72.37 | **Rejected**: no more than either alone, so they fix the same problem |
 | H8 | With label smoothing, a still lower learning rate keeps helping | `tune_ls_lr1e4` 73.02, `tune_ls_lr5e5` 73.52; `tune_ls_lr3e5` skipped | `tune_ls_lr2e4` 72.35 | **Supported down to 1e-4** (+0.67); 5e-5 adds a further +0.50, at the noise bar |
-| H22 | The shape of the smoothing matters, not only its amount: smoothing towards the 20 most similar classes beats uniform smoothing | `imp_ls_neighbours` (run 53) | `imp_trivialaug` 74.28 | **Open** |
+| H22 | The shape of the smoothing matters, not only its amount: smoothing towards the 20 most similar classes beats uniform smoothing | `imp_ls_neighbours` 73.67 (run 53) | `imp_trivialaug` 74.28 | **Rejected**: 73.67 against 74.28 (-0.61, run 53), above the noise bar; top-5 also lower (90.12 against 90.47). The hold-out loss is lower (1.222 against 1.311), so the predictions are better calibrated but less often right |
 
 ![Is over-confidence the limit?](results/hypothesis_charts/h5_h8_overconfidence.png)
 
@@ -92,7 +92,7 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 | H9 | A better head start gives a better final model | `tune_head_init` 69.98; `tune_ls_lr1e4_init43` 71.99; `imp_head_from_lp` 70.28. Run 20 not run | `abl_combined` 71.05; `tune_ls_lr1e4` 73.02; `imp_trivialaug` 74.28 | **Rejected** three times: -1.07, -1.03, -4.00, even though zero-shot rises to 43.30 in the first two |
 | H10 | The head should learn more slowly than the adapters | `tune_head_lr_half` 74.14, `tune_head_lr_quarter` 74.02, `tune_head_lr_double` 71.75 | `tune_ls_lr1e4` 73.02 (same rate) | **Supported**: +1.12, +1.00, -1.27; the most sensitive setting found |
 | H11 | Training the head alone gives most of the gain over zero-shot, and the adapters add the rest | `abl_linear_probe` 62.62 | zero-shot 35.70; `tune_ls_lr1e4` 73.02 | **Supported**: about 70% head, 30% adapters |
-| H21 | H9 fails because an early-fitting head starves the adapters, so holding the head at its class-mean start for the first epoch helps | `imp_head_delay` (run 52) | `imp_trivialaug` 74.28 | **Open**: the reverse of LP-FT |
+| H21 | H9 fails because an early-fitting head starves the adapters, so holding the head at its class-mean start for the first epoch helps | `imp_head_delay` 74.33 (run 52) | `imp_trivialaug` 74.28 | **Rejected**: +0.05, a tie. The delayed head costs 12.7 points after epoch 1 (52.27 against 64.97) and has caught up by epoch 6; the final hold-out loss is the same (1.310 against 1.311). The timing of the head's learning does not matter, so the early-starvation explanation of H9 is not supported |
 
 ![What does the head do?](results/hypothesis_charts/h9_h11_head.png)
 
@@ -112,7 +112,7 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 |---|---|---|---|---|
 | H15 | Layer-wise lr decay helps full fine-tuning | `full_ft_llrd` 76.26 | `full_ft_ls_headlow` 75.75 (both about 18 epochs) | **Supported, modestly**: +0.51. The earlier +2.28 against `full_ft_ls` also included the slower head and twice the epochs |
 | H16 | Tuned, the 5% design matches full fine-tuning | `imp_trivialaug` 74.28 and `imp_trivialaug_fullbudget` 74.18 (75.99 at 288 px for both) | `full_ft_llrd_10ep` 76.06 (77.67) and `full_ft_llrd` 76.26 (77.89) | **Rejected**: a gap of 1.7 to 2.1 at equal epochs and at equal budget. The earlier tie (74.14 against `full_ft_ls` 73.98) was against untuned full fine-tuning. All at a 224 px training size |
-| H24 | Run-to-run variation (another seed) stays under the 0.5-point noise bar used throughout | `imp_trivialaug_288_s1` (run 47), `full_ft_llrd_288_s1` (run 48) | `imp_trivialaug_288` 77.94, `full_ft_llrd_288` 79.69 | **Open**: also checks that the 1.75-point gap is real |
+| H24 | Run-to-run variation (another seed) stays under the 0.5-point noise bar used throughout | `imp_trivialaug_288_s1` (run 47), `full_ft_llrd_288_s1` (run 48) | `imp_trivialaug_288` 77.94, `full_ft_llrd_288` 79.69 | **Supported**: 77.85 (-0.09) and 79.44 (-0.25). The gap is 1.59 with seed 1 against 1.75 with seed 0, so it is real; run 49's -0.87 is about 3.5 times the larger seed change. Two seeds per track only |
 
 ![Full fine-tuning and the track comparison](results/hypothesis_charts/h15_h16_tracks.png)
 
@@ -131,7 +131,7 @@ Not listed: `final_5pct_trivialaug`, `final_full_ft_llrd`, `final_full_ft_llrd_2
 
 ## Proposed architecture
 
-Written 31 Oct 2026 from the hypothesis findings above (H1 to H20; H21 to H24 were added on 5 Nov and are open). Both tracks use the same base model, `vit_base_patch16_224.augreg2_in21k_ft_in1k`, with its head replaced by a 10,000-class linear head (7.69M params, not counted in the trainable %). Scores are hold-out top-1.
+Written 31 Oct 2026 from the hypothesis findings above (H1 to H20; H21 to H24 were added on 5 Nov; H21 to H24 are answered; the choices and measured scores below were updated on 5 Nov to the best hold-out models, runs 39 and 42; the two Phase 2 test submissions (5 Nov 2026) were `final_5pct_trivialaug` (run 30: the `imp_trivialaug` recipe on all 45 images per class, trained at 224 px, tested at 288 px) and `full_ft_llrd_288` (run 39, trained at 288 px, tested at 320 px), see "Test submissions"). Both tracks use the same base model, `vit_base_patch16_224.augreg2_in21k_ft_in1k`, with its head replaced by a 10,000-class linear head (7.69M params, not counted in the trainable %). Scores are hold-out top-1.
 
 ### Efficient-adaptation track (under 5%)
 
@@ -149,19 +149,19 @@ Both trained updates start at zero (`lora_B`, `up`), so training starts from the
 
 | Decision | Choice | Evidence |
 |---|---|---|
-| How much to adapt | Spend the whole 5% | H1: +2 to +2.3 over LoRA r=8, though that run was also shorter |
+| How much to adapt | Spend the whole 5% | H1: +2 to +2.3 over LoRA r=8, though that run was also shorter; at equal epochs and lr, rank 116 is +1.04 over rank 8 (run 50) |
 | Where | Every block, not only the last ones | H4: the last 6 blocks alone lose 0.92 |
-| Which adapter | LoRA + AdaptFormer | H2 and H3 do not separate the designs: a tie untuned, and again on the tuned recipe (AdaptFormer alone -0.50 at 224 px, -0.37 at 288 px). We keep the combined design because it has the nominal best score and its final model is trained; AdaptFormer alone is the simpler, faster alternative (9.5 against 11.8 ms) |
-| Head start | Class averages from 10 images per class, calibrated | H9: stronger starts lost 1.03 to 4.00 |
+| Which adapter | LoRA + AdaptFormer | H2 and H3: a tie untuned and on the tuned recipe at 224 px (AdaptFormer alone -0.50; -0.37 tested at 288 px), but trained at 288 px, the final resolution, AdaptFormer alone is 0.87 lower (run 49: 77.07 against 77.94), outside the 0.5-point tie rule. AdaptFormer alone is faster (9.8 against 12.6 ms logged at 288 px) |
+| Head start | Class averages from 10 images per class, calibrated | H9: stronger starts lost 1.03 to 4.00. Freezing the head for the first epoch makes no difference (H21, run 52: +0.05) |
 | Head learning rate | 5e-5, half the adapters' 1e-4 | H10: the most sensitive setting on this track |
 | Loss | Cross-entropy with label smoothing 0.1 | H5: +1.12 |
 | Learning rate | 1e-4, cosine with warmup | H6, H8: 5e-5 is not clearly better (+0.50, at the noise bar) |
 | Layer-wise lr decay | None | H13: -1.50 on this track |
 | Regularisation | TrivialAugment + random erasing 0.25 | H12: a tie (+0.14), so optional; kept because it is the nominal best and costs nothing at inference |
 | Length | 10 epochs | H14: the whole budget adds nothing |
-| Image size | Train at 224 px, test at 288 px | H17: +1.71. Training at 288 px adds +1.95 more (H20, run 42: 77.94% at 288 px), so the final 5% model should be trained at 288 px |
+| Image size | Train at 288 px, test at 320 px | H17: testing above the training size, +1.71 at 224 px training. H20: training at 288 px adds +1.95 (run 42: 77.94% at 288 px). 320 px is the smallest test size within 0.5 points of the best (78.75; 352 px: 78.73) |
 
-Measured: **74.28% at 224 px, 75.99% at 288 px**, 1.19 h in 48 GB-equivalent, 11.8 ms at 224 px. Config: `imp_trivialaug`; on all 45 images per class: `final_5pct_trivialaug`.
+Measured (best hold-out model, run 42; not submitted to the test set, which took run 30 under the Phase 1 rule): **77.94% at 288 px, 78.75% at 320 px**, 1.70 h in 48 GB-equivalent, 11.8 ms at 320 px (batch 1, run 46). Config: `imp_trivialaug_288`. The same recipe trained at 224 px (`imp_trivialaug`, run 26): 74.28% at 224 px, 75.99% at 288 px, 1.19 h. `final_5pct_trivialaug` (all 45 images per class, 224 px) is not used.
 
 ### Full fine-tuning track (100%)
 
@@ -174,21 +174,21 @@ The same base model with every weight trained and no added layers.
 | Loss | Cross-entropy with label smoothing 0.1 | H5: +1.45 |
 | Regularisation | Weight decay 0.05, no added regulariser | H12 was only tested on the 5% track; not tested here |
 | Length | 10 epochs | H14: 18.2 epochs add only 0.20 |
-| Image size | Train at 288 px, test at 352 px | H19: +2.02 from training at 288 px; the test size adds about 0.8 more. 352 px was chosen on this same hold-out, so 80.45% is slightly optimistic |
+| Image size | Train at 288 px, test at 320 px | H19: +2.02 from training at 288 px. 352 px scores best (80.45), but 320 px is within 0.5 points (80.14, -0.31) with about 17% fewer patches, so the tie rule picks it. Both sizes were chosen on this same hold-out, so the scores are slightly optimistic |
 | Ensembling | None | H18: +0.39 for twice the inference cost |
 
-Measured: **79.69% at 288 px, 80.45% at 352 px**, 1.67 h in 48 GB-equivalent, about 7 ms (the 352 px reading of 16.1 ms looks like an outlier and needs re-measuring). Config: `full_ft_llrd_288`.
+Measured (submitted model, run 39): **79.69% at 288 px, 80.14% at 320 px** (80.45% at 352 px), 1.67 h in 48 GB-equivalent, 7.3 ms at 320 px (batch 1, run 46; the earlier 16.1 ms reading at 352 px was a disturbance). Config: `full_ft_llrd_288`.
 
 ### What the findings imply for the design
 
-- **The input matters more than the adapter.** Resolution gave the largest gain at equal epochs (H19), while the adapter type made no clear difference (H2, H3).
+- **The input matters more than the adapter.** Resolution gave the largest gain at equal epochs (H19), while the adapter type made no clear difference at 224 px (H2, H3) and only 0.87 points at 288 px (run 49).
 - **The head is a design part, not an afterthought.** It carries about 70% of the gain over zero-shot (H11) and overfits first, so it gets a gentle start and a slower rate (H9, H10).
-- **Full fine-tuning is the higher-accuracy design; the 5% design is the smaller one.** At the same training size the gap is 1.7 to 2.1 points (H16). The 5% design stores about 12M params per task against 93.5M, but has slower inference and no clear saving in training time.
+- **Full fine-tuning is the higher-accuracy design; the 5% design is the smaller one.** At the same training size the gap is 1.7 to 2.1 points (H16), and 1.39 between the best hold-out models at 320 px; a second seed moves each track by 0.25 points or less (H24). The 5% design stores about 12M params per task against 93.5M, but has slower inference and no clear saving in training time.
 
 ### Still open
 
 - **H20, the 5% design trained at 288 px:** resolved by run 42: 77.94% at 288 px (+1.95). The track gap at equal training and test size is 1.75 points (79.69 against 77.94). Tested at 320 px it scores 78.75%, against 80.14% for full fine-tuning (a gap of 1.39).
-- **Final full fine-tuning model:** resolved: run 40 stopped at 8.32 of 10 epochs, and its clean re-run, run 41 (`final_full_ft_llrd_288_v2`), completed all 10 epochs. Run 41 is the final full fine-tuning model; run 39 remains the scored reference for its recipe.
+- **Final full fine-tuning model:** resolved: run 40 stopped at 8.32 of 10 epochs, and its clean re-run, run 41 (`final_full_ft_llrd_288_v2`), completed all 10 epochs. Run 41 was then not used: full fine-tuning submitted run 39 itself, so its test score has a measured hold-out score beside it.
 - **Settings not tested as a single change:** weight decay, the adapters' scale 0.1 and LoRA alpha were kept as they were. The r=12 / b=208 split is one tested point, not a tuned optimum.
 
 ## Runs
@@ -816,7 +816,7 @@ Hold-out top-1 by epoch:
 - **Efficiency:** 85,896,960 trainable params (100%); head 7.69M (not counted). Latency 7.4 ms at 288 px. Peak VRAM 14.9 GiB. Train 2.021 h on an A100 40 GB = 1.684 h in 48 GB-equivalent, 84% of the budget.
 - **Expected accuracy:** run 39 (the same recipe with 43 images per class) scored 79.69% at 288 px and 80.45% at 352 px on the hold-out; 4.7% more images should add a little. Submit at `--size 288`: 352 px was chosen on the hold-out it was scored on, so its +0.76 is the number most likely to be optimistic. Check it on the val leaderboard before using 352.
 - **Decision:** this is the final full fine-tuning model; it replaces run 40 (not fully annealed) and run 37 (trained at 224 px).
-- **Superseded (5 Nov 2026)** for the test submission by run 39 itself: the submitted models are the hold-out models of both tracks (runs 39 and 42), so their test scores can be checked against measured hold-out scores.
+- **Superseded (5 Nov 2026)** for the test submission by run 39 itself, so the full fine-tuning test score can be checked against a measured hold-out score. Run 41 was also not eligible: it was trained after Phase 1 closed (see "Test submissions").
 - **Log:** `results/final_full_ft_llrd_288_v2/log.jsonl`, `summary.json`.
 
 ### imp_trivialaug_288, run 42 (5 Nov 2026, lilian)
@@ -848,7 +848,7 @@ Hold-out top-1 by epoch:
 - **Interpretation:** a tie, so the trained head no longer overfits in a way a parameter-free classifier can correct: the two make largely the same errors, in line with H12 (the recipe has converged). Not used.
 - **By-product:** class means on the frozen pre-trained features scored 43.30% (224 px, 43 images per class, zero-shot); on the adapted features they score 69.82% (288 px). The test sizes differ, so the gap of about 25 points is approximate, but most of the adaptation gain is already in the features before any trained head. This qualifies H11 (head alone on frozen features 62.62%): the adapters' main effect is a better feature space, which the head then reads out.
 
-### Latency of the submitted models, run 46 (5 Nov 2026, lilian; no training)
+### Latency of the final hold-out models, run 46 (5 Nov 2026, lilian; no training)
 
 - **Setup:** `python -m common.latency <full_ft_llrd_288> <imp_trivialaug_288> --sizes 288 320 352` (new script): batch 1, bf16, A100 40 GB with nothing else on the GPU; each (model, size) timed 5 times, each time the median of 100 passes after 20 warm-up passes, with models and sizes interleaved. Median (min to max), ms:
 
@@ -865,10 +865,110 @@ Hold-out top-1 by epoch:
 - **Result:** hold-out top-1 **77.07%** at 288 px (top-5 91.95, loss 1.184), **0.87 below** run 42 (77.94, loss 1.157). Zero-shot 36.45%. +1.45 over run 36 tested at 288 px (75.62), against +1.95 for the combined design (H20).
 - **Per-epoch hold-out top-1:** 67.15, 72.18, 74.33, 75.56, 76.02, 76.72, 76.60, 76.89, 77.03, 77.07; converged, and behind run 42 at every epoch from the second on (run 42: 72.78 at epoch 2, 77.95 at epoch 9).
 - **Efficiency:** 4,288,224 adapter params = 4.992% of the backbone; head 7.69M (not counted). Latency 9.8 ms at 288 px (batch 1, the single reading logged at the end of training; run 42 logged 12.6 ms the same way, so about 22% faster). Peak VRAM 10.2 GiB (run 42: 11.5). Train 1.87 h on an A100 40 GB = 1.56 h in 48 GB-equivalent (run 42: 1.70 h); about 690 img/s against 624; one process (no repeated steps).
-- **Interpretation:** the gap to the combined design has grown with each step towards the final recipe: -0.50 at 224 px, -0.37 when tested at 288 px, -0.87 when trained at 288 px. The first two were within the noise bar; this one is not. So H3 holds at 224 px but not at the final resolution: with more pixels, adapting attention as well as the FFN starts to pay. One seed per design, so the seed repeats (runs 47 and 48, H24) show how firm 0.87 is.
-- **Consequence:** under the selection rule (cheapest within 0.5 points of the best), AdaptFormer alone does not qualify: it is 22% faster and 8% cheaper to train, but 0.87 points lower. The combined design (run 42) stays the submitted 5% model, which confirms the 5 Nov decision.
-- **Still to run:** `python -m common.evaluate <run folder> --sizes 288 320`, to compare with run 42 at the submitted test size (78.75% at 320 px).
+- **Interpretation:** the gap to the combined design has grown with each step towards the final recipe: -0.50 at 224 px, -0.37 when tested at 288 px, -0.87 when trained at 288 px. The first two were within the noise bar; this one is not. So H3 holds at 224 px but not at the final resolution: with more pixels, adapting attention as well as the FFN starts to pay. One seed per design; the seed repeats (runs 47 and 48, H24) moved the result by at most 0.25, so 0.87 is about 3.5 times the run-to-run change.
+- **Consequence:** under the selection rule (cheapest within 0.5 points of the best), AdaptFormer alone does not qualify: it is 22% faster and 8% cheaper to train, but 0.87 points lower. The combined design (run 42) stays the final 5% model (best on the hold-out; the test submission was run 30, see "Test submissions").
+- **Still to run:** `python -m common.evaluate <run folder> --sizes 288 320`, to compare with run 42 at the chosen test size (78.75% at 320 px).
 - **Log:** `results/imp_adaptformer_only_288/log.jsonl`, `summary.json`.
+
+### Seed repeats of the final recipes, runs 47 and 48 (5 Nov 2026, Ryan)
+
+- **Setup:** `configs/imp_trivialaug_288.yaml` and `configs/full_ft_llrd_288.yaml` with `seed=1` (runs 42 and 39 used seed 0), new run names `imp_trivialaug_288_s1` and `full_ft_llrd_288_s1`. The hold-out split is fixed (`SPLIT_SEED` 0), so only training randomness changes: adapter init, data order, augmentation. Checked: the first training losses differ from runs 42 and 39 (4.771 against 4.796; 4.346 against 4.333), so the seed took effect. Tests H24.
+- **Result:**
+
+  | Recipe | Seed 0 | Seed 1 | Change | Mean |
+  |---|---|---|---|---|
+  | 5%, `imp_trivialaug_288` (runs 42 / 47) | 77.94 | 77.85 | -0.09 | 77.90 |
+  | Full FT, `full_ft_llrd_288` (runs 39 / 48) | 79.69 | 79.44 | -0.25 | 79.57 |
+  | Gap (full FT minus 5%) | 1.75 | 1.59 | | 1.67 |
+
+- **Per-epoch hold-out top-1, seed 1:** 5%: 68.48, 73.07, 75.17, 76.20, 76.89, 77.39, 77.54, 77.80, 77.90, 77.85; full FT: 70.76, 75.07, 76.90, 77.79, 78.34, 78.72, 79.07, 79.40, 79.39, 79.45. Both curves track their seed-0 runs to within about 0.3 at every epoch.
+- **Efficiency:** as runs 42 and 39: 2.05 h and 2.03 h on an A100 40 GB (1.71 and 1.69 h in 48 GB-equivalent); peak VRAM 11.5 and 14.9 GiB; one process each (no repeated steps).
+- **Interpretation:** H24 supported. A different seed moves a run by 0.1 to 0.25 points, so the 0.5-point noise bar used throughout is conservative, not too tight. The track gap (1.59 to 1.75) is far above it, and so is run 49's -0.87 (AdaptFormer alone at 288 px). Ties inside about 0.3 points (H12's regularisers, 320 against 352 px) remain ties. Caveat: two seeds per recipe are a small sample; they bound the spread, they do not measure it precisely.
+- **Final models unchanged:** the seed-0 runs (39, 42) stay the final hold-out models; the seed-1 runs are not better (both slightly lower, within noise).
+- **Still to run:** `python -m common.evaluate <run folder> --sizes 288 320` for both, to repeat the check at the submitted test size.
+- **Log:** `results/imp_trivialaug_288_s1/`, `results/full_ft_llrd_288_s1/` (`log.jsonl`, `summary.json`).
+
+### imp_bitfit, run 51 (5 Nov 2026, Nicole)
+
+- **Setup:** `configs/imp_bitfit.yaml`: BitFit (only the backbone's bias terms train, plus the head) with the `imp_trivialaug` recipe: label smoothing 0.1, head lr 5e-5, TrivialAugment + random erasing 0.25, 10 epochs, 224 px. One deliberate difference: bias lr 5e-4 (head_lr_mult 0.1 keeps the head at 5e-5). Tests H23.
+- **Result:** hold-out top-1 **71.30%** at 224 px (top-5 88.30, loss 1.473). Zero-shot 35.70%.
+- **Per-epoch hold-out top-1:** 61.24, 65.91, 68.38, 69.40, 70.18, 71.09, 71.04, 71.17, 71.24, 71.30: converged.
+- **Efficiency:** 102,912 trainable backbone params = **0.12%** (2.4% of the 5% design's 4,287,936); head 7.69M (not counted). Latency 7.4 ms at 224 px (batch 1, logged at the end of training): no added modules, so as fast as the plain model, against about 11.4 ms for the 5% design. Peak VRAM 6.3 GiB. Train 1.37 h on an A100 40 GB = 1.14 h in 48 GB-equivalent, at about 930 img/s.
+- **Parameters against accuracy (224 px, same recipe):**
+
+  | Trained in the backbone | Run | Top-1 |
+  |---|---|---|
+  | nothing (head only, 0%) | `abl_linear_probe` | 62.62 |
+  | biases (0.12%) | `imp_bitfit` | 71.30 |
+  | LoRA + AdaptFormer (4.99%) | `imp_trivialaug` | 74.28 |
+  | everything (100%) | `full_ft_llrd_10ep` | 76.06 |
+
+- **Interpretation:** H23 supported. The biases alone recover 8.68 of the 11.66 points the 5% adapters add over the linear probe (74%), with 2.4% of their parameters and no latency cost. The last 2.98 points need the adapters' 40 times more parameters. Accuracy rises steeply for the first 0.1% and slowly after: most of the adaptation is a small shift of the features, which matches run 45 (class means of the adapted features already reach 69.82%). The bias lr differs from the 5% runs (5e-4 against 1e-4), as BitFit needs; it is not tuned, so 71.30 is a lower estimate for BitFit.
+- **For the report:** a fourth point on the parameters-against-accuracy chart, and the answer to "why spend 5%?": the extra 4.9% buys about 3 points.
+- **Log:** `results/imp_bitfit/log.jsonl`, `summary.json`.
+
+### abl_lora_r8, run 50 (5 Nov 2026, Nicole)
+
+- **Setup:** `configs/abl_lora_r8.yaml`: `abl_lora_only` (run 8: LoRA on every `qkv`, rank 116, 4.984%) with one change, rank 8 (alpha 16, so alpha / r = 2 in both): 0.34%, the brief's LoRA size. Same lr 3e-4, 10 epochs, no label smoothing. Tests H1 without its confound: `lora_r8_full` (68.78) also trained 7.02 epochs at lr 5e-4.
+- **Result:** hold-out top-1 **69.72%** at 224 px (top-5 86.52), against 70.76% (top-5 87.47) for rank 116: **-1.04**, above the noise bar.
+- **Per-epoch hold-out top-1 against rank 116:**
+
+  | Epoch | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | rank 8 (run 50) | 64.10 | 66.85 | 67.21 | 67.12 | 67.91 | 68.58 | 68.85 | 69.62 | 69.69 | 69.72 |
+  | rank 116 (run 8) | 63.49 | 65.98 | 66.29 | 67.23 | 67.71 | 68.78 | 69.73 | 70.30 | 70.62 | 70.76 |
+
+- **Efficiency:** 294,912 trainable params (0.344%); head 7.69M (not counted). Latency 9.9 ms at 224 px (batch 1, logged at the end of training; rank 116 logged 10.4 ms). Peak VRAM 6.7 GiB. Train 1.15 h on an A100 40 GB = 0.96 h in 48 GB-equivalent. One process (steps 50 to 33,550, in order).
+- **Interpretation:** H1 supported without the confound: at equal epochs and lr, 14.5 times more LoRA parameters give +1.04. The original H1 gap (+1.98 against `lora_r8_full`) was about half size and half training: the same rank 8 gains +0.94 from 10 epochs at 3e-4. Rank 8 learns slightly faster early (ahead after epochs 1 to 3) and flattens from epoch 7, while rank 116 keeps rising to the end, so the extra capacity pays only late in training. Both runs overfit on this untuned recipe (train loss about 0.09 for rank 8 and 0.07 for rank 116 over the last 1,000 steps), yet the larger one still generalises better.
+- **For the write-up:** the parameters-against-accuracy curve on the untuned recipe now has two LoRA points at equal settings (0.34%: 69.72, 4.98%: 70.76); on the tuned recipe, BitFit (0.12%, 71.30) and the 5% design (74.28). Do not compare points across the two recipes.
+- **Log:** `results/abl_lora_r8/log.jsonl`, `summary.json`.
+
+### imp_head_delay, run 52 (5 Nov 2026, lilian)
+
+- **Setup:** `configs/imp_head_delay.yaml`: `imp_trivialaug` (run 26) with one change, `head_delay_epochs: 1`: the classifier head stays at its class-mean start for the first epoch (only the adapters learn), then joins with its own 200-step warm-up. Tests H21, our explanation of H9: a head that fits the training images early takes the easy part of the loss and leaves the adapters a weaker signal. The reverse of LP-FT (Kumar et al., 2022), which trains the head first.
+- **Result:** hold-out top-1 **74.33%** at 224 px (top-5 90.33, loss 1.310), against 74.28% (top-5 90.47, loss 1.311) for run 26: **+0.05, a tie.**
+- **Per-epoch hold-out top-1 against run 26:**
+
+  | Epoch | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | head delayed (run 52) | 52.27 | 65.60 | 69.98 | 71.67 | 73.07 | 73.62 | 73.95 | 74.19 | 74.34 | 74.33 |
+  | head from the start (run 26) | 64.97 | 69.26 | 71.52 | 72.66 | 73.56 | 73.72 | 73.91 | 74.24 | 74.24 | 74.28 |
+
+- **Efficiency:** as run 26: 4,287,936 trainable params (4.998%), head 7.69M (not counted). Latency 12.3 ms at 224 px (batch 1, logged at the end of training; same model as run 26, 11.8 ms, so timing noise). Peak VRAM 7.3 GiB. Train 1.39 h on an A100 40 GB = 1.16 h in 48 GB-equivalent. One process (steps 50 to 33,550, in order).
+- **Interpretation:** H21 rejected. With the head frozen, the adapters alone lift the class-mean head from 35.70 to 52.27 in one epoch, but the run is 12.7 points behind at that point and has caught up by epoch 6; after that the two runs move together and end level, with the same hold-out loss. So when the head starts learning does not matter, and an early-fitting head does not starve the adapters in a way that lasts. H9's failures therefore need another explanation. The one left standing: the stronger starts (class means from the training images themselves, or a head already fitted by a linear probe) begin closer to the training set, so they start more over-confident, and the slow head rate (H10) is what limits that over-confidence. That fits H10 being the most sensitive setting, but it is untested.
+- **What it shows for the write-up:** a novel idea tested and rejected cleanly: the opposite of LP-FT makes no difference here, which also suggests LP-FT would not help (H9's linear-probe start, -4.00, is close to LP-FT and hurt).
+- **Log:** `results/imp_head_delay/log.jsonl`, `summary.json`.
+
+### imp_ls_neighbours, run 53 (5 Nov 2026, Ryan)
+
+- **Setup:** `configs/imp_ls_neighbours.yaml`: `imp_trivialaug` (run 26) with one change, `ls_neighbours: 20`: the 10% label-smoothing mass goes to each class's 20 most similar classes (cosine similarity of the class means used for the head start) instead of being spread evenly over all 10,000. Tests H22: does the shape of the smoothing matter, or only its amount? Our second novel idea.
+- **Result:** hold-out top-1 **73.67%** at 224 px (top-5 90.12, hold-out loss 1.222), against 74.28% (top-5 90.47, loss 1.311) for run 26: **-0.61**, above the noise bar (a second seed moves a run by 0.25 at most, H24).
+- **Per-epoch hold-out top-1 against run 26:**
+
+  | Epoch | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | neighbour smoothing (run 53) | 64.61 | 68.74 | 71.03 | 71.98 | 72.62 | 73.09 | 73.30 | 73.54 | 73.61 | 73.67 |
+  | uniform smoothing (run 26) | 64.97 | 69.26 | 71.52 | 72.66 | 73.56 | 73.72 | 73.91 | 74.24 | 74.24 | 74.28 |
+
+  Behind from epoch 1 and the gap never closes (0.36 to 0.94 points).
+- **Efficiency:** as run 26: 4,287,936 trainable params (4.998%), head 7.69M (not counted). Latency 12.2 ms at 224 px (batch 1, logged at the end of training; same model as run 26, so timing noise). Peak VRAM 7.3 GiB. Train 1.40 h on an A100 40 GB = 1.17 h in 48 GB-equivalent. One process (steps 50 to 33,550, in order). The training losses are not comparable (1.43 against 2.04): a target spread over 20 classes has a lower entropy than one spread over 10,000, so its loss floor is lower.
+- **Interpretation:** H22 rejected: the shape of the smoothing matters, but concentrating it on look-alike classes hurts. The hold-out loss (plain cross-entropy, so comparable) is lower, so the model is better calibrated: it puts more probability on the classes it confuses. But top-1 and top-5 are both lower. Our reading, untested: neighbour smoothing teaches the model that look-alike classes are partly right, which blurs exactly the boundaries a fine-grained task needs sharp; uniform smoothing only limits confidence, without saying which classes are similar. Possible follow-ups (not run): fewer neighbours, a smaller neighbour share, or neighbours from the adapted features rather than the frozen ones.
+- **What it shows for the write-up:** our second novel idea, tested and rejected cleanly, with a measured side effect (better calibration, lower accuracy).
+- **Log:** `results/imp_ls_neighbours/log.jsonl`, `summary.json`.
+
+### Test submissions, Phase 2 (5 Nov 2026, lilian)
+
+- **Submitted (2 of 2 Phase 2 submissions used):**
+
+  | Track | Run | Trained | Training images | Test size | Hold-out estimate |
+  |---|---|---|---|---|---|
+  | 5% | `final_5pct_trivialaug` (run 30) | 224 px, 10 epochs | all 45 per class | 288 px | 75.99% (the same recipe on 43 images per class, `imp_trivialaug`, at 288 px) |
+  | Full fine-tuning | `full_ft_llrd_288` (run 39) | 288 px, 10 epochs | 43 per class | 320 px | 80.14% (measured) |
+
+- **Why run 30 and not run 42 for the 5% track:** the competition rules allow only models submitted during Phase 1 (validation, closed 30 Oct 23:59) to be submitted for the test set. Run 42 (`imp_trivialaug_288`, 78.75% at 320 px, the best 5% hold-out model) was trained on 5 Nov, so it was not eligible; run 30 was submitted to the val leaderboard on 22 Oct. Run 39 was the full fine-tuning choice.
+- **Test scores:** recorded on CodaBench and on the slides, not in this public repo. Both are close to their hold-out estimates, so the hold-out was a reliable guide.
+- **Reading the two test scores:** the submissions differ in training resolution as well as method (run 30 trained at 224 px, run 39 at 288 px), so the gap between them is not the cost of the 5% design. On the hold-out at equal settings that cost is 1.4 to 1.8 points (H16, H20); training at 288 px adds about 2 points on either track (H19, H20). The test gap is about the sum of the two.
+- **For the report:** report run 42 as the best 5% design (hold-out) and run 30 as the submitted 5% model (test), and say why they differ.
 
 ## Next runs (planned 11 Oct 2026)
 
@@ -897,7 +997,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 17 | `abl_linear_probe` | | only the head is trained (backbone frozen, no adapters); compare with run 11 to see what the adapters add | lilian | done 21 Oct: 62.62% (re-run; the first attempt stopped at 6.36 epochs on a slow session and was discarded) |
 | 18 | `tune_ls_lr1e4_init43` | | run 11 + head start from all 43 images per class (about 1.25 h) | Nicole | done: 71.99%, -1.03 against run 11 (same loss as run 6); keep the 10-image head |
 | 19 | `tune_head_lr_quarter` | | run 15 with the head at a quarter of the adapters' rate (head 2.5e-5) | Nicole | done: 74.02%, level with run 15 |
-| 20 | `tune_head_lr_half_init43` | | run 15 + head start from all 43 images per class (about 1.25 h) | lilian (for Nicole) | claimed 30 Oct |
+| 20 | `tune_head_lr_half_init43` | | run 15 + head start from all 43 images per class (about 1.25 h) | lilian (for Nicole) | not run (claimed 30 Oct; H9 was already rejected twice) |
 | 21 | `full_ft_ls_headlow` | | run 12 with the head at the backbone's rate (3e-5 instead of 3e-4), fair comparison | lilian (for Nicole) | done: 75.75% (77.43% at 288 px, A100 40 GB, 18.18 epochs); layer-wise decay adds only about 0.5 at this length (run 27) |
 | 22 | no training | | test-size check on a finished run: `python -m common.evaluate <run folder> --sizes 224 256 288` (minutes; see section 5) | lilian | done 22 Oct on `imp_trivialaug`: 288 px gives 75.99% (+1.71), 76.23% with mirror averaging; 288 is the optimum (320: +1.00, 352: -0.22). Follow-up: the same check on `full_ft_ls` |
 | 23 | `imp_droppath` | | run 15 + stochastic depth 0.1 | lilian | done 21 Oct: 74.09%, tie with run 15 (lower hold-out loss) |
@@ -907,11 +1007,11 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 27 | `full_ft_llrd` | none on an A100 80 GB; `max_train_steps=31461` on an A100 40 GB | run 21 + layer-wise lr decay 0.75. The config fills the budget (`epochs: null`), so on a 40 GB card (2.4 h) it would train about 19 epochs instead of `full_ft_ls`'s 9.37; the step cap keeps the length equal. Checkpoints are already once per epoch in the config | lilian | done 23 Oct: **76.26%**, run on a 40 GB card without the cap (18.2 epochs, 2.27 h, inside the budget) |
 | 28 | `imp_ep15_control` | | run 15 for 15 epochs, A100 40 GB; only if run 25 beats run 15 | - | skipped: run 25 did not beat run 15 |
 | 29 | (written after 22 to 27) | | run 15 + every change from 22 to 26 that gained about 0.5 points or more | - | not needed: none of runs 23 to 26 cleared 0.5 points (all within 0.3 of run 15). The final 5% recipe stays run 15, optionally with TrivialAugment (the nominal best, 74.28, no inference cost), plus the test size from run 22 |
-| 30 | `final_5pct_trivialaug` | | final 5% model: run 26's recipe (TrivialAugment, 74.28%) on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only; A100 40 GB (about 1.5 h) | lilian | done 22 Oct: trained cleanly (1.36 h); submit at `--size 288` |
+| 30 | `final_5pct_trivialaug` | | final 5% model: run 26's recipe (TrivialAugment, 74.28%) on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only; A100 40 GB (about 1.5 h) | lilian | done 22 Oct: trained cleanly (1.36 h); submitted to the val leaderboard at `--size 288`, and to the Phase 2 test set (5 Nov, 288 px) |
 | 31 | no training | | fair evaluation of full fine-tuning: `python -m common.evaluate <full_ft_llrd folder> --sizes 224 288` (single pass and mirror averaging at both sizes, like run 22 for the 5% model) | lilian | done 30 Oct: 77.89% at 288 px (+1.63), 77.98% with mirror averaging |
 | 32 | `full_ft_llrd_10ep` | | equal length: `full_ft_llrd` for 10 epochs (33,590 steps), the length of the 5% runs. A100 40 GB preferred (about 1.2 h); then `--sizes 224 288` | lilian | done 30 Oct (A100 80 GB, 1.20 h): 76.06%, 77.67% at 288 px; only -0.2 against 18.2 epochs, so the gap to the 5% track (1.7) is the method |
 | 33 | `imp_trivialaug_fullbudget` | | equal budget: `imp_trivialaug` filling the 2.4 h budget of an A100 40 GB (about 16 epochs), like `full_ft_llrd`. A100 40 GB only; then `--sizes 224 288` | Nicole | done 30 Oct: 74.18%, 75.99% at 288 px (16.9 epochs): no gain over 10 epochs; the gap to full fine-tuning at equal budget is 1.9 to 2.1 |
-| 34 | `imp_trivialaug_llrd` | | run 26 + layer-wise lr decay 0.75 on the adapters (the change that lifted full fine-tuning) | lilian (for Nicole) | claimed 30 Oct |
+| 34 | `imp_trivialaug_llrd` | | run 26 + layer-wise lr decay 0.75 on the adapters (the change that lifted full fine-tuning) | lilian (for Nicole) | done: 72.78% (74.73% at 288 px), H13 rejected; `log.jsonl` and `summary.json` not uploaded yet, so no csv row and no run section |
 | 35 | `imp_head_from_lp` | | run 26 with the head started from the linear probe's trained head (run 17, 62.6%): head first, then adapters (LP-FT). Needs `abl_linear_probe/final.pt` in the runner's runs folder | lilian | done 30 Oct: 70.28% (71.97% at 288 px), 4 points below run 26: the pre-fitted head overfits; keep the class-average head |
 | 36 | `imp_adaptformer_only` | | run 26 settings with AdaptFormer only (b=232): the simpler, faster design | Nicole | done: 73.78% (-0.50 against run 26), 75.62% at 288 px (-0.37); a tie |
 | 37 | `final_full_ft_llrd` | | final full fine-tuning model: run 32's recipe (`full_ft_llrd_10ep`, 76.06%, 77.67% at 288 px) on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only. A100 40 GB preferred (about 1.2 h); submit at `--size 288` | lilian | done: trained cleanly (1.26 h, 10 epochs); submit at `--size 288` |
@@ -920,17 +1020,17 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 40 | `final_full_ft_llrd_288` | | final full fine-tuning model: run 39's recipe on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only. A100 40 GB only (about 2.0 h); replaces run 37 for the test submission | lilian | stopped early at 8.32 of 10 epochs (2.60 h): a second process ran in the same folder for part of the run. Model usable but not fully annealed; superseded by run 41 |
 | 41 | `final_full_ft_llrd_288_v2` | | clean re-run of run 40 (same config, new `RUN` name `final_full_ft_llrd_288_v2`); no hold-out, leaderboard only. A100 40 GB only | lilian | done: completed 10 epochs in 2.02 h, one process; superseded 5 Nov: run 39 is submitted instead |
 | 42 | `imp_trivialaug_288` | | H20: run 26 (`imp_trivialaug`, 74.28%, 75.99% at 288 px) trained at 288 px (`train_size: 288`), one change. A100 40 GB only (about 2.3 h); then `--sizes 288 320 352`; compare with run 26 at 288 px and with run 39 | lilian | done 5 Nov: **77.94%** at 288 px, +1.95 over run 26 tested at 288 px; 2.04 h; 78.75% at 320 px, the best test size |
-| 43 | `final_5pct_adaptformer` | | final 5% model: run 36's recipe (AdaptFormer only, b=232; 73.78%, 75.62% at 288 px) on all 45 images per class (`holdout_per_class: 0` is in the config); replaces `final_5pct_trivialaug` for the test submission because AdaptFormer alone ties the combined design and is about 17% faster. No hold-out. A100 40 GB (about 1.4 h); submit at `--size 288` | lilian | superseded 5 Nov: training at 288 px (run 42) is worth +1.95, and run 42 is submitted instead; stop it if still running |
+| 43 | `final_5pct_adaptformer` | | final 5% model: run 36's recipe (AdaptFormer only, b=232; 73.78%, 75.62% at 288 px) on all 45 images per class (`holdout_per_class: 0` is in the config); replaces `final_5pct_trivialaug` for the test submission because AdaptFormer alone ties the combined design and is about 17% faster. No hold-out. A100 40 GB (about 1.4 h); submit at `--size 288` | lilian | superseded 5 Nov: training at 288 px (run 42) is worth +1.95, and run 42 became the final 5% model (the test submission was run 30, see "Test submissions"); stop it if still running |
 | 44 | `imp_trivialaug_fixres288` | | run 26 + 2 epochs at 288 px from its trained weights (`init_from`); the cheap alternative to run 42 | lilian | done 5 Nov: 77.28% at 288 px (77.73% at 320 px), +1.33 for 0.34 h; 0.66 below run 42 at 288 px, 1.02 at 320 px |
 | 45 | no training | | head + class-mean ensemble on `imp_trivialaug` at 288 px: `python -m common.proto_ensemble <run folder> --size 288` | lilian | done 5 Nov: 75.84% cross-fitted against 75.99% head only (-0.15), a tie; class means alone 69.82% |
-| 46 | no training | | latency of the submitted models: `python -m common.latency <run 39> <run 42> --sizes 288 320 352` | lilian | done 5 Nov: 7.3 and 11.8 ms at 320 px; the earlier high readings were disturbances |
-| 47 | `imp_trivialaug_288_s1` | | run 42 with `seed=1` (`CONFIG imp_trivialaug_288`, `RUN imp_trivialaug_288_s1`, `EXTRA seed=1`): measures run-to-run variation of the 5% track. A100 40 GB (about 2 h); then `--sizes 288 320` | | open |
-| 48 | `full_ft_llrd_288_s1` | | run 39 with `seed=1` (`CONFIG full_ft_llrd_288`, `RUN full_ft_llrd_288_s1`, `EXTRA seed=1`): run-to-run variation of full fine-tuning. A100 40 GB (about 2 h); then `--sizes 288 320` | | open |
+| 46 | no training | | latency of the final hold-out models: `python -m common.latency <run 39> <run 42> --sizes 288 320 352` | lilian | done 5 Nov: 7.3 and 11.8 ms at 320 px; the earlier high readings were disturbances |
+| 47 | `imp_trivialaug_288_s1` | | run 42 with `seed=1` (`CONFIG imp_trivialaug_288`, `RUN imp_trivialaug_288_s1`, `EXTRA seed=1`): measures run-to-run variation of the 5% track. A100 40 GB (about 2 h); then `--sizes 288 320` | Ryan | done 5 Nov: 77.85% at 288 px (-0.09 against run 42); `--sizes 288 320` still to run |
+| 48 | `full_ft_llrd_288_s1` | | run 39 with `seed=1` (`CONFIG full_ft_llrd_288`, `RUN full_ft_llrd_288_s1`, `EXTRA seed=1`): run-to-run variation of full fine-tuning. A100 40 GB (about 2 h); then `--sizes 288 320` | Ryan | done 5 Nov: 79.44% at 288 px (-0.25 against run 39); `--sizes 288 320` still to run |
 | 49 | `imp_adaptformer_only_288` | | run 36 trained at 288 px: does AdaptFormer alone tie the combined design at the final resolution (against run 42)? A100 40 GB (about 1.8 h); then `--sizes 288 320` | lilian | done 5 Nov: 77.07% at 288 px, 0.87 below run 42: no longer a tie; `--sizes 288 320` still to run |
-| 50 | `abl_lora_r8` | | `abl_lora_only` with rank 8 (0.34%): H1 at equal epochs and lr, without the confound of `lora_r8_full`. A100 40 GB (about 1.2 h) | | open |
-| 51 | `imp_bitfit` | | BitFit (about 0.12%) with the `imp_trivialaug` recipe, bias lr 5e-4, head 5e-5: a point between the linear probe and the 5% design. A100 40 GB (about 1.3 h) | | open |
-| 52 | `imp_head_delay` | | novel idea: `imp_trivialaug` with the head frozen at its class-mean start for the first epoch (`head_delay_epochs: 1`); tests the H9 explanation that an early-fitting head starves the adapters. A100 40 GB (about 1.4 h); compare with run 26 (74.28) | | open |
-| 53 | `imp_ls_neighbours` | | novel idea: `imp_trivialaug` with label smoothing spread over each class's 20 nearest classes (`ls_neighbours: 20`) instead of all 10,000. A100 40 GB (about 1.4 h); compare with run 26 (74.28) | | open |
+| 50 | `abl_lora_r8` | | `abl_lora_only` with rank 8 (0.34%): H1 at equal epochs and lr, without the confound of `lora_r8_full`. A100 40 GB (about 1.2 h) | Nicole | done 5 Nov: 69.72% (0.34%), 1.04 below rank 116: H1 supported without the confound |
+| 51 | `imp_bitfit` | | BitFit (about 0.12%) with the `imp_trivialaug` recipe, bias lr 5e-4, head 5e-5: a point between the linear probe and the 5% design. A100 40 GB (about 1.3 h) | Nicole | done 5 Nov: 71.30% at 224 px (0.12%), 1.37 h |
+| 52 | `imp_head_delay` | | novel idea: `imp_trivialaug` with the head frozen at its class-mean start for the first epoch (`head_delay_epochs: 1`); tests the H9 explanation that an early-fitting head starves the adapters. A100 40 GB (about 1.4 h); compare with run 26 (74.28) | lilian | done 5 Nov: 74.33% (+0.05, a tie): H21 rejected |
+| 53 | `imp_ls_neighbours` | | novel idea: `imp_trivialaug` with label smoothing spread over each class's 20 nearest classes (`ls_neighbours: 20`) instead of all 10,000. A100 40 GB (about 1.4 h); compare with run 26 (74.28) | Ryan | done 5 Nov: 73.67% (-0.61): H22 rejected |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
 
@@ -1036,6 +1136,7 @@ Each row is one run. Add the result to `results/results.csv` and a section above
 - What the parts add (hold-out top-1): class-mean head 35.70 (43.30 with 43 images per class) -> trained head only 62.62 (`abl_linear_probe`) -> adapters 73.02 -> tuned head rate 74.14. About 70% of the gain over zero-shot comes from training the head, 30% from the adapters.
 - Decision (1 Nov 2026): the final model is full fine-tuning (`full_ft_llrd`) tested at 288 px, after the professor approved the test size. Still to settle: what the second of the 2 Phase 2 test submissions is (the same model retrained on all 45 images per class, `final_full_ft_llrd`, or the 5% model).
 - Decision (5 Nov 2026, lilian): the 2 Phase 2 test submissions are the hold-out models of both tracks, trained at 288 px and tested at 320 px: `full_ft_llrd_288` (run 39, 80.14% hold-out) and `imp_trivialaug_288` (run 42, 78.75% hold-out). They share the training size, epochs, test size and hold-out, so the test scores compare the tracks fairly and can be checked against the hold-out. The models retrained on all 45 images per class (runs 30, 37, 41, 43) are not submitted.
+- Correction (5 Nov 2026, lilian): run 42 was not eligible (only models submitted in Phase 1 may be submitted for the test set), so the two Phase 2 test submissions (5 Nov 2026) were `final_5pct_trivialaug` (run 30: the `imp_trivialaug` recipe on all 45 images per class, trained at 224 px, tested at 288 px) and `full_ft_llrd_288` (run 39, trained at 288 px, tested at 320 px).
 - Open question for the professor: an 80 GB A100 is counted here as 80 GB (budget 1.2 h). The LoRA run peaked at 6.7 GiB, so ask whether such a run may use the full 2 h.
 - Zero-shot baseline for the report (0% trained, head set from class means): 43.30% with all 43 training images per class, 35.70% with 10 per class. The brief reports 43.7%.
 - Base model: the professor ruled on 12 Oct 2026 that a different base checkpoint is not allowed (the IN21K-only weights were considered and dropped). A larger input size than 224 px is allowed, for training and testing (reported by lilian, 31 Oct 2026); the professor has since confirmed that testing at 288 px is allowed (by 1 Nov 2026). The team's final model for the leaderboard is the full fine-tuning model `full_ft_llrd`, tested at 288 px.

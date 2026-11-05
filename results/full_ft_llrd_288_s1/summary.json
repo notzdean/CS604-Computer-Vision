@@ -1,0 +1,22 @@
+{
+ "name": "full_ft_llrd_288_s1",
+ "who": "Ryan",
+ "method": "full_ft",
+ "holdout_top1": 79.44,
+ "holdout_top5": 93.28,
+ "zero_shot_top1": 36.45,
+ "trainable_params": 85896960,
+ "trainable_pct": 100.0,
+ "head_params": 7690000,
+ "latency_ms_bs1": 7.5,
+ "train_hours": 2.025,
+ "gpu": "NVIDIA A100-SXM4-40GB",
+ "gpu_gb": 40,
+ "equiv_hours_48gb": 1.688,
+ "peak_vram_gib": 14.9,
+ "epochs": 10.0,
+ "steps": 33590,
+ "lr": 0.0001,
+ "batch_size": 128,
+ "notes": "full_ft_llrd_10ep trained at 288 px"
+}

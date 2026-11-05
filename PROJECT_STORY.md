@@ -16,10 +16,10 @@ We adapt a pre-trained ViT-B/16 to 10,000 fine-grained classes, using 450,000 im
 | First trained model | 71.05 | 72.53 |
 | Label smoothing, gentler learning rates | 74.14 | 76.06 |
 | Testing on larger images | 75.99 (288 px) | 77.67 (288 px) |
-| Training on larger images | not run yet | 79.69 (288 px) |
-| Training at 288 px, testing at the best size | not run yet | **80.45** (352 px) |
+| Training on larger images | 77.94 (288 px) | 79.69 (288 px) |
+| Testing at 320 px: our best models | **78.75** | **80.14** |
 
-The 5% track's last two scores come from a model with an added augmentation (see "What didn't help"), which itself made no measurable difference.
+From "Testing on larger images" on, the 5% track's scores come from a model with an added augmentation (see "What didn't help"), which itself made no measurable difference.
 
 ## 1. Where the 5% goes barely matters
 
@@ -124,7 +124,7 @@ At the same training size, full fine-tuning leads by about 2 points. The gap hol
 - **What 5% doesn't save:** training time. On the same 80 GB GPU and at 10 epochs, the untuned 5% design took 1.18 h and tuned full fine-tuning took 1.20 h.
 - **What it costs:** about 2 points and about 65% more inference latency, because the adapters add layers.
 
-The current 80.45 against 75.99 overstates the gap, because the 5% design has not yet been trained at 288 px.
+Trained at 288 px as well, the 5% design gains as much as full fine-tuning (+1.95), so the gap stays: 1.75 points at 288 px (77.94 against 79.69) and 1.39 at the chosen 320 px (78.75 against 80.14). A second seed moves each track by 0.25 points or less, so the gap is real.
 
 ## What we would say we learned
 
@@ -135,6 +135,5 @@ The current 80.45 against 75.99 overstates the gap, because the 5% design has no
 
 ## Still open
 
-- **5% at 288 px:** this is the missing comparison, and it could narrow the gap.
-- **Final models:** the final full fine-tuning retrain on all 45 images per class is not recorded yet. A model with no held-out images can't be scored locally, so its accuracy can only be estimated from these results.
-- **Latency at 352 px:** the only reading (16.1 ms) looks like a timing outlier, since 320 and 384 px both measured about 7 ms. It needs re-measuring before we quote it.
+- **Neighbour label smoothing (run 53):** smoothing towards each class's 20 most similar classes instead of all 10,000 scored 73.67 against 74.28 (-0.61): better calibrated (lower hold-out loss), but less often right. Uniform smoothing stays.
+- **Settled since this was first written:** the 5% design trained at 288 px (77.94, run 42); the best models are runs 39 and 42, tested at 320 px; the test submissions were run 39 and, because only models submitted in Phase 1 qualified, run 30 (the 224 px recipe on all 45 images per class, tested at 288 px); the 16.1 ms latency reading at 352 px was a disturbance (run 46: about 7 ms for full fine-tuning at 320 to 352 px).

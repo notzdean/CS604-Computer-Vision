@@ -22,7 +22,7 @@ R = {"lora_r8_full": 68.78, "abl_lora_only": 70.76, "abl_adaptformer_only": 71.0
      "tune_ls_lr5e5": 73.52, "tune_head_init": 69.98, "tune_ls_lr1e4_init43": 71.99, "imp_head_from_lp": 70.28,
      "tune_head_lr_half": 74.14, "tune_head_lr_quarter": 74.02, "tune_head_lr_double": 71.75, "abl_linear_probe": 62.62,
      "imp_droppath": 74.09, "imp_ema": 74.19, "imp_mixup": 73.97, "imp_trivialaug_fullbudget": 74.18, "full_ft_llrd": 76.26,
-     "full_ft_llrd_10ep": 76.06, "full_ft_ls_headlow": 75.75, "full_ft_llrd_288": 79.69}
+     "full_ft_llrd_10ep": 76.06, "full_ft_ls_headlow": 75.75, "full_ft_llrd_288": 79.69, "imp_bitfit": 71.30, "imp_head_delay": 74.33, "abl_lora_r8": 69.72, "imp_adaptformer_only": 73.78, "imp_trivialaug_288": 77.94, "imp_adaptformer_only_288": 77.07, "imp_ls_neighbours": 73.67}
 for row in csv.DictReader(open("results/results.csv", encoding="utf8")):
     if row["name"] in R:
         assert float(row["holdout_top1"]) == R[row["name"]], row["name"]
@@ -37,9 +37,12 @@ def vs(run, base):
 # file name: (heading, [(hypothesis, verdict, [(tested label, tested score, baseline label, baseline score)])])
 GROUPS = {
     "h1_h4_design": ("Where should the 5% go?", [
-        ("H1: more adapter parameters beat the small LoRA", "Supported", [vs(r, "lora_r8_full") for r in ("abl_lora_only", "abl_adaptformer_only", "abl_combined")]),
+        ("H1: more adapter parameters beat the small LoRA", "Supported", [vs(r, "lora_r8_full") for r in ("abl_lora_only", "abl_adaptformer_only", "abl_combined")] + [("abl_lora_only (equal epochs and lr)", R["abl_lora_only"], "abl_lora_r8", R["abl_lora_r8"])]),
         ("H2: adapting attention and FFN beats either alone", "Rejected", [vs("abl_combined", "abl_lora_only"), vs("abl_combined", "abl_adaptformer_only")]),
-        ("H3: AdaptFormer alone can match the combined design, tuned", "Inconclusive", [("imp_adaptformer_only", 73.78, "imp_trivialaug", R["imp_trivialaug"])]),
+        ("H3: AdaptFormer alone can match the combined design, tuned", "Split: ties at 224 px, loses at 288 px", [
+            vs("imp_adaptformer_only", "imp_trivialaug"),
+            ("imp_adaptformer_only, tested at 288 px", 75.62, "imp_trivialaug, tested at 288 px", AT_288["imp_trivialaug"]),
+            ("imp_adaptformer_only_288 (trained at 288 px)", R["imp_adaptformer_only_288"], "imp_trivialaug_288", R["imp_trivialaug_288"])]),
         ("H4: the 5% is best spent on the last 6 blocks", "Rejected", [vs("abl_adaptformer_last6", "abl_adaptformer_only")]),
     ]),
     "h5_h8_overconfidence": ("Is over-confidence the limit?", [
@@ -47,11 +50,18 @@ GROUPS = {
         ("H6: a lower learning rate helps, a higher one hurts", "Supported", [vs("tune_lr_low", "abl_combined"), vs("tune_lr_high", "abl_combined")]),
         ("H7: label smoothing and a lower rate add up", "Rejected", [vs("tune_ls_lr2e4", "tune_label_smoothing"), vs("tune_ls_lr2e4", "tune_lr_low")]),
         ("H8: with label smoothing, a still lower rate keeps helping", "Supported down to 1e-4", [vs("tune_ls_lr1e4", "tune_ls_lr2e4"), vs("tune_ls_lr5e5", "tune_ls_lr1e4")]),
+        ("H22: smoothing towards the 20 look-alike classes helps (novel)", "Rejected", [vs("imp_ls_neighbours", "imp_trivialaug")]),
     ]),
     "h9_h11_head": ("What does the head do?", [
         ("H9: a better head start gives a better final model", "Rejected", [vs("tune_head_init", "abl_combined"), vs("tune_ls_lr1e4_init43", "tune_ls_lr1e4"), vs("imp_head_from_lp", "imp_trivialaug")]),
         ("H10: the head should learn more slowly than the adapters", "Supported", [vs(r, "tune_ls_lr1e4") for r in ("tune_head_lr_half", "tune_head_lr_quarter", "tune_head_lr_double")]),
         ("H11: training the head gives most of the gain", "Supported", [("abl_linear_probe (head only)", R["abl_linear_probe"], "zero-shot", 35.70), ("tune_ls_lr1e4 (head + adapters)", R["tune_ls_lr1e4"], "abl_linear_probe", R["abl_linear_probe"])]),
+        ("H21: freezing the head for the first epoch helps (novel)", "Rejected", [vs("imp_head_delay", "imp_trivialaug")]),
+    ]),
+    "h23_bitfit": ("How much adaptation is needed?", [
+        ("H23: the biases alone recover most of the adapters' gain", "Supported", [
+            ("imp_bitfit (0.12%)", R["imp_bitfit"], "abl_linear_probe (0%)", R["abl_linear_probe"]),
+            ("imp_trivialaug (5%)", R["imp_trivialaug"], "imp_bitfit (0.12%)", R["imp_bitfit"])]),
     ]),
     "h12_h14_recipe": ("Does more regularisation or training time help?", [
         ("H12: a stronger regulariser adds accuracy", "Rejected", [vs(r, "tune_head_lr_half") for r in ("imp_droppath", "imp_ema", "imp_mixup", "imp_trivialaug")]),
@@ -113,7 +123,8 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     for name, (heading, panels) in GROUPS.items():
         heights = [len(p[2]) * 0.62 + 0.3 for p in panels]
-        fig, axes = plt.subplots(len(panels), 1, figsize=(10, sum(heights) + 0.75 * len(panels) + 1.0), gridspec_kw={"height_ratios": heights}, facecolor=SURFACE)
+        fig, axes = plt.subplots(len(panels), 1, figsize=(10, sum(heights) + 0.75 * len(panels) + 1.0), gridspec_kw={"height_ratios": heights}, facecolor=SURFACE, squeeze=False)
+        axes = axes[:, 0]
         h = fig.get_figheight()
         for ax, (title, verdict, rows) in zip(axes, panels):
             panel(ax, title, verdict, rows, x_range(panels))

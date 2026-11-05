@@ -1,0 +1,22 @@
+{
+ "name": "abl_lora_r8",
+ "who": "Nicole",
+ "method": "lora",
+ "holdout_top1": 69.72,
+ "holdout_top5": 86.52,
+ "zero_shot_top1": 35.7,
+ "trainable_params": 294912,
+ "trainable_pct": 0.344,
+ "head_params": 7690000,
+ "latency_ms_bs1": 9.9,
+ "train_hours": 1.151,
+ "gpu": "NVIDIA A100-SXM4-40GB",
+ "gpu_gb": 40,
+ "equiv_hours_48gb": 0.959,
+ "peak_vram_gib": 6.7,
+ "epochs": 10.0,
+ "steps": 33590,
+ "lr": 0.0003,
+ "batch_size": 128,
+ "notes": "abl_lora_only with rank 8 (0.34%): H1 at equal epochs and lr"
+}
