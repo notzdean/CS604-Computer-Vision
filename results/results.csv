@@ -35,3 +35,4 @@ final_full_ft_llrd_288,lilian,full_ft,,,,85896960,100.0,7690000,6.8,2.595,NVIDIA
 final_full_ft_llrd_288_v2,lilian,full_ft,,,,85896960,100.0,7690000,7.4,2.021,NVIDIA A100-SXM4-40GB,40,1.684,14.9,10.0,35150,0.0001,128,,final full fine-tuning model: full_ft_llrd_288 on all 45 images per class (no hold-out)
 imp_adaptformer_only,Nicole,adaptformer,73.78,89.97,35.7,4288224,4.998,7690000,9.5,1.36,NVIDIA A100-SXM4-40GB,40,1.133,6.5,10.0,33590,0.0001,128,,imp_trivialaug settings with AdaptFormer only (b=232)
 imp_trivialaug_288,lilian,lora_adaptformer,77.94,92.38,36.45,4287936,4.992,7690000,12.6,2.04,NVIDIA A100-SXM4-40GB,40,1.7,11.5,10.0,33590,0.0001,128,,imp_trivialaug trained at 288 px (H20)
+imp_trivialaug_fixres288,lilian,lora_adaptformer,77.28,92.28,75.95,4287936,4.992,7690000,12.1,0.403,NVIDIA A100-SXM4-40GB,40,0.336,11.5,2.0,6718,5e-05,128,,imp_trivialaug + 2 epochs at 288 px from its trained weights (FixRes fine-tune)
