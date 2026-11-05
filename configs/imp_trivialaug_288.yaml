@@ -1,0 +1,26 @@
+# H20: the best 5% recipe, imp_trivialaug (74.28%, 75.99% tested at 288 px), with ONE change: train at 288 px.
+# Why: training full fine-tuning at 288 px (full_ft_llrd_288) gave +2.02 over only testing at 288 px (H19), the largest
+# single gain. The 5% design was only ever trained at 224 px, so the track gap (80.45 against 75.99) mixes the method
+# with the training resolution. This run separates them. Position embeddings are interpolated: no new parameters, the
+# adapter share stays 4.998%.
+# Cost: 324 patches instead of 196 = at most about 1.65 times the time per image, so 10 epochs take about 2.3 h.
+# GPU: A100 40 GB only (budget 2.4 h; the guard stops at 108% = 2.6 h). On an 80 GB card (budget 1.2 h) it would stop early.
+# Watch img/s in the first log lines: TrivialAugment made imp_trivialaug loader-bound at 224 px. If img/s stays well
+# below about 400, the run will not fit 10 epochs: stop and say so.
+# Per-epoch evals use 288 px. After training: python -m common.evaluate <run> --sizes 288 320 352
+# Compare with imp_trivialaug at 288 px (75.99) and with full_ft_llrd_288 (79.69 at 288 px, 80.45 at 352 px).
+name: imp_trivialaug_288
+method: lora_adaptformer
+method_args: {lora_r: 12, lora_alpha: 24, bottleneck: 208, scale: 0.1}
+epochs: 10
+budget_hours: auto
+batch_size: 128
+lr: 1.0e-4
+head_lr_mult: 0.5
+weight_decay: 0.01
+label_smoothing: 0.1
+head_init: true
+auto_augment: trivial
+re_prob: 0.25
+train_size: 288
+notes: "imp_trivialaug trained at 288 px (H20)"

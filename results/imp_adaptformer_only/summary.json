@@ -1,0 +1,22 @@
+{
+ "name": "imp_adaptformer_only",
+ "who": "Nicole",
+ "method": "adaptformer",
+ "holdout_top1": 73.78,
+ "holdout_top5": 89.97,
+ "zero_shot_top1": 35.7,
+ "trainable_params": 4288224,
+ "trainable_pct": 4.998,
+ "head_params": 7690000,
+ "latency_ms_bs1": 9.5,
+ "train_hours": 1.36,
+ "gpu": "NVIDIA A100-SXM4-40GB",
+ "gpu_gb": 40,
+ "equiv_hours_48gb": 1.133,
+ "peak_vram_gib": 6.5,
+ "epochs": 10.0,
+ "steps": 33590,
+ "lr": 0.0001,
+ "batch_size": 128,
+ "notes": "imp_trivialaug settings with AdaptFormer only (b=232)"
+}

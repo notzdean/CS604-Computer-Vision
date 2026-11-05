@@ -43,6 +43,7 @@ Brief marks: motivation of design (most important), design, **ablation of each p
 | full_ft_ls_headlow | `full_ft_ls` + head at the backbone's rate, full 2.4 h budget (18.18 epochs; run 21) | `full_ft_ls_headlow` | 75.75 (77.43 at 288 px) | 100 | 7.69M (trained) | 2.26 (A100 40 GB) | not recorded here |
 | full_ft_llrd_10ep | `full_ft_llrd` for 10 epochs, the length of the 5% runs (run 32) | `full_ft_llrd_10ep` | 76.06 (77.67 at 288 px) | 100 | 7.69M (trained) | 1.20 | not recorded here |
 | final_full_ft_llrd_288 | final model: run 39's recipe on all 45 images per class, no hold-out; stopped early at 8.32 of 10 epochs (run 40) | `final_full_ft_llrd_288` | - (no hold-out; leaderboard only) | 100 | 7.69M (trained) | 2.60 (A100 40 GB; two processes for part of it) | not recorded here |
+| final_full_ft_llrd_288_v2 | **final full fine-tuning model**: clean re-run of run 40 (run 39's recipe on all 45 images per class), full 10 epochs (run 41) | `final_full_ft_llrd_288` | - (no hold-out; leaderboard only) | 100 | 7.69M (trained) | 2.02 (A100 40 GB) | not recorded here |
 | full_ft_llrd_288 | `full_ft_llrd_10ep` trained at 288 px, 10 epochs (run 39) | `full_ft_llrd_288` | **79.69** at 288 px (**80.45** tested at 352 px) | 100 | 7.69M (trained) | 2.00 (A100 40 GB) | not recorded here |
 | final_full_ft_llrd | final full fine-tuning model: `full_ft_llrd_10ep` recipe on all 45 images per class, no hold-out (run 37) | `final_full_ft_llrd` | - (no hold-out; leaderboard only) | 100 | 7.69M (trained) | 1.26 (A100 40 GB) | not recorded here |
 | tune_ls_lr1e4_init43 | `tune_ls_lr1e4` + head init from 43 images per class (run 18) | `tune_ls_lr1e4_init43` | 71.99 | 4.998 | 7.69M (trained) | 1.27 | not recorded here |
@@ -117,7 +118,7 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 
 ![Do more pixels or more models help?](results/hypothesis_charts/h17_h19_pixels.png)
 
-Not listed: `final_5pct_trivialaug`, `final_full_ft_llrd` and `final_full_ft_llrd_288` test no hypothesis. They retrain a chosen recipe on all 45 images per class and have no hold-out score.
+Not listed: `final_5pct_trivialaug`, `final_full_ft_llrd`, `final_full_ft_llrd_288` and `final_full_ft_llrd_288_v2` test no hypothesis. They retrain a chosen recipe on all 45 images per class and have no hold-out score.
 
 ## Proposed architecture
 
@@ -178,7 +179,7 @@ Measured: **79.69% at 288 px, 80.45% at 352 px**, 1.67 h in 48 GB-equivalent, ab
 ### Still open
 
 - **H20, the 5% design trained at 288 px:** until it is run, 80.45 against 75.99 overstates the gap between the tracks.
-- **Final full fine-tuning model:** run 40 stopped at 8.32 of 10 epochs, so choose between a clean re-run and run 39.
+- **Final full fine-tuning model:** resolved: run 40 stopped at 8.32 of 10 epochs, and its clean re-run, run 41 (`final_full_ft_llrd_288_v2`), completed all 10 epochs. Run 41 is the final full fine-tuning model; run 39 remains the scored reference for its recipe.
 - **Settings not tested as a single change:** weight decay, the adapters' scale 0.1 and LoRA alpha were kept as they were. The r=12 / b=208 split is one tested point, not a tuned optimum.
 
 ## Runs
@@ -787,6 +788,17 @@ Hold-out top-1 by epoch:
 - **Efficiency:** 85,896,960 trainable params (100%); head 7.69M (not counted). Latency 6.8 ms at 288 px. Peak VRAM 14.9 GiB. Train 2.595 h on an A100 40 GB = 2.162 h in 48 GB-equivalent, 108% of the budget, inside the 10% tolerance.
 - **Expected accuracy:** unknown. Run 39 scored 79.47 to 79.49% around the same number of steps and 79.69% at the end, so the shorter schedule may cost about 0.2 points, against an unmeasured gain from 4.7% more images. Do not treat it as better than run 39 without evidence.
 - **Log:** `results/final_full_ft_llrd_288/log.jsonl`, `summary.json`. Filter by step to separate the two processes.
+- **Superseded** by run 41 (`final_full_ft_llrd_288_v2`), a clean re-run. Kept here as the record of the duplicate-process incident.
+
+### final_full_ft_llrd_288_v2, run 41 (lilian)
+
+- **Setup:** `configs/final_full_ft_llrd_288.yaml` with a new `RUN` name, so it started from scratch instead of resuming run 40: run 39's recipe (layer-wise decay 0.75, head x0.3, label smoothing 0.1, lr 1e-4, trained at 288 px) on all 45 images per class (`holdout_per_class: 0`), 10-epoch schedule.
+- **Result:** no local score (no hold-out); judged on the leaderboard only. **Completed its schedule:** 35,150 of 35,150 steps (10.0 epochs), the learning rate decayed to its floor. One process only: the log's steps are continuous from 50 to 35,150 with no repeats, at a steady 634 img/s.
+- **Training loss (mean per epoch):** 2.86, 2.22, 1.95, 1.78, 1.65, 1.57, 1.52, 1.48, 1.47, 1.46. Still falling slightly at the end, with no sign of instability. Label smoothing 0.1 sets a floor well above zero, so these values are not comparable to unsmoothed runs.
+- **Efficiency:** 85,896,960 trainable params (100%); head 7.69M (not counted). Latency 7.4 ms at 288 px. Peak VRAM 14.9 GiB. Train 2.021 h on an A100 40 GB = 1.684 h in 48 GB-equivalent, 84% of the budget.
+- **Expected accuracy:** run 39 (the same recipe with 43 images per class) scored 79.69% at 288 px and 80.45% at 352 px on the hold-out; 4.7% more images should add a little. Submit at `--size 288`: 352 px was chosen on the hold-out it was scored on, so its +0.76 is the number most likely to be optimistic. Check it on the val leaderboard before using 352.
+- **Decision:** this is the final full fine-tuning model; it replaces run 40 (not fully annealed) and run 37 (trained at 224 px).
+- **Log:** `results/final_full_ft_llrd_288_v2/log.jsonl`, `summary.json`.
 
 ## Next runs (planned 11 Oct 2026)
 
@@ -835,7 +847,9 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 37 | `final_full_ft_llrd` | | final full fine-tuning model: run 32's recipe (`full_ft_llrd_10ep`, 76.06%, 77.67% at 288 px) on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only. A100 40 GB preferred (about 1.2 h); submit at `--size 288` | lilian | done: trained cleanly (1.26 h, 10 epochs); submit at `--size 288` |
 | 38 | no training | | ensemble check: `python -m common.ensemble <full_ft_llrd folder> <full_ft_ls_headlow folder> --size 288` (`full_ft_llrd_10ep` was not on this Drive) | lilian | done: 78.30%, +0.39 over the best single model; below the 1-point bar, so no second seed for now |
 | 39 | `full_ft_llrd_288` | | run 32 trained at 288 px (`train_size: 288`), the unused half of the budget paying for more pixels. A100 40 GB only (at most about 2 h); then `--sizes 288 320 352`; compare with run 32 at its best test size (77.67%) | lilian | done 30 Oct: **79.69%** at 288 px, +2.02 over run 32 (A100 40 GB, 2.00 h); best run of either track; 80.45% tested at 352 px, the optimum (384 px 79.91%, 416 px 79.06%) |
-| 40 | `final_full_ft_llrd_288` | | final full fine-tuning model: run 39's recipe on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only. A100 40 GB only (about 2.0 h); replaces run 37 for the test submission | lilian | stopped early at 8.32 of 10 epochs (2.60 h): a second process ran in the same folder for part of the run. Model usable but not fully annealed; choose between a clean re-run and run 39 |
+| 40 | `final_full_ft_llrd_288` | | final full fine-tuning model: run 39's recipe on all 45 images per class (`holdout_per_class: 0` is in the config); no hold-out, leaderboard only. A100 40 GB only (about 2.0 h); replaces run 37 for the test submission | lilian | stopped early at 8.32 of 10 epochs (2.60 h): a second process ran in the same folder for part of the run. Model usable but not fully annealed; superseded by run 41 |
+| 41 | `final_full_ft_llrd_288_v2` | | clean re-run of run 40 (same config, new `RUN` name `final_full_ft_llrd_288_v2`); no hold-out, leaderboard only. A100 40 GB only | lilian | done: completed 10 epochs in 2.02 h, one process; the final full fine-tuning model; submit at `--size 288` |
+| 42 | `imp_trivialaug_288` | | H20: run 26 (`imp_trivialaug`, 74.28%, 75.99% at 288 px) trained at 288 px (`train_size: 288`), one change. A100 40 GB only (about 2.3 h); then `--sizes 288 320 352`; compare with run 26 at 288 px and with run 39 | lilian | open |
 
 When a run finishes, copy `log.jsonl` and `summary.json` from `My Drive/cs604_runs/<CONFIG>/` into `results/<CONFIG>/` and push those two files. Do not upload to CodaBench; one person handles submissions.
 
