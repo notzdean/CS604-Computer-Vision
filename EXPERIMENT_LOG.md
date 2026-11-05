@@ -68,7 +68,7 @@ Written 31 Oct 2026, from the config notes, the queue and the run sections below
 | H3 | The tie in H2 hid a difference that the tuned recipe would reveal, so AdaptFormer alone could match the combined design | `imp_adaptformer_only` 73.78, 75.62 at 288 px (run 36) | `imp_trivialaug` 74.28, 75.99 at 288 px | **Supported (a tie)**: -0.50 at 224 px and -0.37 at 288 px, both within noise; AdaptFormer alone is faster (9.5 against 11.8 ms at 224 px) |
 | H4 | Late blocks carry the fine-grained adaptation, so the 5% is best spent on the last 6 | `abl_adaptformer_last6` 70.17 | `abl_adaptformer_only` 71.09 | **Rejected**: -0.92 |
 | H1 (re-test) | H1 without the confound: at equal epochs and lr, rank 116 beats rank 8 | `abl_lora_r8` (run 50, 0.34%, lr 3e-4, 10 epochs) | `abl_lora_only` 70.76 | **Open** |
-| H3 (288 px) | AdaptFormer alone still ties the combined design when both train at 288 px | `imp_adaptformer_only_288` (run 49) | `imp_trivialaug_288` 77.94 at 288 px | **Open** |
+| H3 (288 px) | AdaptFormer alone still ties the combined design when both train at 288 px | `imp_adaptformer_only_288` 77.07 at 288 px (run 49) | `imp_trivialaug_288` 77.94 at 288 px | **Rejected**: -0.87, above the noise bar. At the final resolution the combined design earns its place; AdaptFormer alone is faster (9.8 against 12.6 ms) but outside the 0.5-point tie rule |
 | H23 | Even the biases alone (BitFit, 0.12%) recover most of the adapters' gain over the linear probe | `imp_bitfit` (run 51) | `abl_linear_probe` 62.62; `imp_trivialaug` 74.28 | **Open**: "most" = above 68.45, the midpoint |
 
 ![Where should the 5% go?](results/hypothesis_charts/h1_h4_design.png)
@@ -859,6 +859,17 @@ Hold-out top-1 by epoch:
 
 - **Interpretation:** the earlier single readings of 16 to 40 ms at 320 or 352 px (runs 39, 42, 44 and the run 22 check) were disturbances during measurement, not a cost of the size: repeated, every reading falls within 0.4 ms. At batch 1 the A100 is limited by the number of operations launched, not by the number of patches, so 288 to 352 px cost the same. The 5% model is about 60% slower (11.8 against 7.3 ms) because each block runs two extra modules (unmerged LoRA on `qkv`, AdaptFormer next to the FFN). Use these numbers in the report: 7.3 and 11.8 ms at the submitted size of 320 px.
 
+### imp_adaptformer_only_288, run 49 (5 Nov 2026, lilian)
+
+- **Setup:** `configs/imp_adaptformer_only_288.yaml`: `imp_adaptformer_only` (run 36: AdaptFormer only, bottleneck 232, the `imp_trivialaug` recipe) with one change, `train_size: 288`. Tests H3 at the final resolution: does AdaptFormer alone still tie the combined design (run 42) when both train at 288 px?
+- **Result:** hold-out top-1 **77.07%** at 288 px (top-5 91.95, loss 1.184), **0.87 below** run 42 (77.94, loss 1.157). Zero-shot 36.45%. +1.45 over run 36 tested at 288 px (75.62), against +1.95 for the combined design (H20).
+- **Per-epoch hold-out top-1:** 67.15, 72.18, 74.33, 75.56, 76.02, 76.72, 76.60, 76.89, 77.03, 77.07; converged, and behind run 42 at every epoch from the second on (run 42: 72.78 at epoch 2, 77.95 at epoch 9).
+- **Efficiency:** 4,288,224 adapter params = 4.992% of the backbone; head 7.69M (not counted). Latency 9.8 ms at 288 px (batch 1, the single reading logged at the end of training; run 42 logged 12.6 ms the same way, so about 22% faster). Peak VRAM 10.2 GiB (run 42: 11.5). Train 1.87 h on an A100 40 GB = 1.56 h in 48 GB-equivalent (run 42: 1.70 h); about 690 img/s against 624; one process (no repeated steps).
+- **Interpretation:** the gap to the combined design has grown with each step towards the final recipe: -0.50 at 224 px, -0.37 when tested at 288 px, -0.87 when trained at 288 px. The first two were within the noise bar; this one is not. So H3 holds at 224 px but not at the final resolution: with more pixels, adapting attention as well as the FFN starts to pay. One seed per design, so the seed repeats (runs 47 and 48, H24) show how firm 0.87 is.
+- **Consequence:** under the selection rule (cheapest within 0.5 points of the best), AdaptFormer alone does not qualify: it is 22% faster and 8% cheaper to train, but 0.87 points lower. The combined design (run 42) stays the submitted 5% model, which confirms the 5 Nov decision.
+- **Still to run:** `python -m common.evaluate <run folder> --sizes 288 320`, to compare with run 42 at the submitted test size (78.75% at 320 px).
+- **Log:** `results/imp_adaptformer_only_288/log.jsonl`, `summary.json`.
+
 ## Next runs (planned 11 Oct 2026)
 
 ### Run queue
@@ -915,7 +926,7 @@ Take a run marked "open" and tell the team before you start, so no run is done t
 | 46 | no training | | latency of the submitted models: `python -m common.latency <run 39> <run 42> --sizes 288 320 352` | lilian | done 5 Nov: 7.3 and 11.8 ms at 320 px; the earlier high readings were disturbances |
 | 47 | `imp_trivialaug_288_s1` | | run 42 with `seed=1` (`CONFIG imp_trivialaug_288`, `RUN imp_trivialaug_288_s1`, `EXTRA seed=1`): measures run-to-run variation of the 5% track. A100 40 GB (about 2 h); then `--sizes 288 320` | | open |
 | 48 | `full_ft_llrd_288_s1` | | run 39 with `seed=1` (`CONFIG full_ft_llrd_288`, `RUN full_ft_llrd_288_s1`, `EXTRA seed=1`): run-to-run variation of full fine-tuning. A100 40 GB (about 2 h); then `--sizes 288 320` | | open |
-| 49 | `imp_adaptformer_only_288` | | run 36 trained at 288 px: does AdaptFormer alone tie the combined design at the final resolution (against run 42)? A100 40 GB (about 1.8 h); then `--sizes 288 320` | | open |
+| 49 | `imp_adaptformer_only_288` | | run 36 trained at 288 px: does AdaptFormer alone tie the combined design at the final resolution (against run 42)? A100 40 GB (about 1.8 h); then `--sizes 288 320` | lilian | done 5 Nov: 77.07% at 288 px, 0.87 below run 42: no longer a tie; `--sizes 288 320` still to run |
 | 50 | `abl_lora_r8` | | `abl_lora_only` with rank 8 (0.34%): H1 at equal epochs and lr, without the confound of `lora_r8_full`. A100 40 GB (about 1.2 h) | | open |
 | 51 | `imp_bitfit` | | BitFit (about 0.12%) with the `imp_trivialaug` recipe, bias lr 5e-4, head 5e-5: a point between the linear probe and the 5% design. A100 40 GB (about 1.3 h) | | open |
 | 52 | `imp_head_delay` | | novel idea: `imp_trivialaug` with the head frozen at its class-mean start for the first epoch (`head_delay_epochs: 1`); tests the H9 explanation that an early-fitting head starves the adapters. A100 40 GB (about 1.4 h); compare with run 26 (74.28) | | open |

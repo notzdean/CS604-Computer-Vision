@@ -2,7 +2,7 @@
 
 Built against `project_requirements.md`: cover the investigation, the motivation, the design, the comparison with baselines and the ablations; focus on adaptation methods; show the process, including failed runs; visually rich slides. All scores are hold-out top-1 (2 images per class, 20,000 images), at 224 px unless a size is given. Differences under 0.5 points are noise. Leaderboard and test scores are not written here (public repo): add them to the slides only.
 
-**Storyline:** we set out to find the best adaptation method under 5%. The method type mattered less than how the classifier head adapts and how many pixels the model sees, and, contrary to the brief's expectation, tuned full fine-tuning still beat the 5% design on this few-shot task. For the final models we applied one rule: among options within 0.5 points of the best, take the cheapest. That picked 320 px over 352 px for both tracks, and at a 224 px training size AdaptFormer alone over LoRA + AdaptFormer. Training at 288 px then added about 2 points to both tracks, and we kept the combined design, whose 288 px result was measured, over AdaptFormer alone, whose tie was never tested at 288 px. Both submitted models are the measured hold-out models (runs 39 and 42), trained and tested under the same conditions.
+**Storyline:** we set out to find the best adaptation method under 5%. The method type mattered less than how the classifier head adapts and how many pixels the model sees, and, contrary to the brief's expectation, tuned full fine-tuning still beat the 5% design on this few-shot task. For the final models we applied one rule: among options within 0.5 points of the best, take the cheapest. That picked 320 px over 352 px for both tracks, and at a 224 px training size AdaptFormer alone over LoRA + AdaptFormer. Training at 288 px then added about 2 points to both tracks, and at 288 px the tie broke: the combined design led AdaptFormer alone by 0.87 (run 49), so we kept it. Both submitted models are the measured hold-out models (runs 39 and 42), trained and tested under the same conditions.
 
 ## Slides
 
@@ -30,12 +30,12 @@ Speaker split (suggestion): person 1 slides 1-6, person 2 slides 7-11, person 3 
 
 ## Hypotheses (numbers as in `EXPERIMENT_LOG.md`)
 
-Show the hypothesis as the title or subtitle of each iteration slide, and the verdict as a stamp (supported / rejected / split). The wording is reconstructed from the config notes, not pre-registered: say so if asked. Of the 20 in the log, 18 are tested hypotheses, shown in 15 rows (three pairs merged), H11 is shown as a finding and H18 goes to backup. Scoreboard for slide 15: 6 supported, 7 rejected, 2 split (H13 + H15: helps one track, hurts the other; H20: lifts the 5% design, but the gap stays).
+Show the hypothesis as the title or subtitle of each iteration slide, and the verdict as a stamp (supported / rejected / split). The wording is reconstructed from the config notes, not pre-registered: say so if asked. Of the 20 in the log, 18 are tested hypotheses, shown in 15 rows (three pairs merged), H11 is shown as a finding and H18 goes to backup. Scoreboard for slide 15: 6 supported, 6 rejected, 3 split (H2 + H3: a tie at 224 px, the combined design ahead when trained at 288 px; H13 + H15: helps one track, hurts the other; H20: lifts the 5% design, but the gap stays).
 
 | # | Hypothesis | Verdict | Slide |
 |---|---|---|---|
 | H1 | More adapter parameters beat the brief's small LoRA | Supported, +2 to +2.3; **confounded**: the small LoRA also trained 7 epochs against 10 (show the caveat) | 6, 7 |
-| H2 + H3 | Adapting attention and FFN beats either alone at equal 5% | Rejected: a tie untuned (all within 0.33) and again on the tuned recipe (AdaptFormer alone -0.50 at 224 px, -0.37 at 288 px) | 6 |
+| H2 + H3 | Adapting attention and FFN beats either alone at equal 5% | Split: a tie untuned (all within 0.33) and on the tuned recipe at 224 px (AdaptFormer alone -0.50; -0.37 tested at 288 px), but trained at 288 px the combined design leads by 0.87 (run 49). It pays only at the final resolution | 6 |
 | H4 | Late blocks carry the adaptation, so spend the 5% on the last 6 | Rejected: -0.92 | 6 |
 | H5 | Label smoothing helps, because the model is over-confident on 45 images | Supported: +1.12 (5%), +1.45 (full FT) | 8 |
 | H6 + H8 | A lower lr helps, a higher one hurts (one sweep: 5e-4 to 5e-5) | Supported down to about 1e-4: 69.28 at 5e-4, 71.05 at 3e-4, 72.37 at 2e-4, 73.02 at 1e-4 (with label smoothing); 5e-5 level | 8 |
@@ -60,7 +60,6 @@ Open (added 5 Nov; add a row above with its verdict when the result is in, and u
 | # | Hypothesis | Run | Compared against | Slide |
 |---|---|---|---|---|
 | H1 re-test | At equal epochs and lr, rank 116 beats rank 8 (removes the H1 caveat) | 50 `abl_lora_r8` | `abl_lora_only` 70.76 | 6, 7 |
-| H3 at 288 px | AdaptFormer alone still ties the combined design at the final resolution | 49 `imp_adaptformer_only_288` | `imp_trivialaug_288` 77.94 | 6 |
 | H21 | An early-fitting head starves the adapters, so delaying the head helps (novel; the reverse of LP-FT) | 52 `imp_head_delay` | `imp_trivialaug` 74.28 | 9 |
 | H22 | Smoothing towards similar classes beats uniform smoothing (novel) | 53 `imp_ls_neighbours` | `imp_trivialaug` 74.28 | 8 |
 | H23 | The biases alone (BitFit, 0.12%) recover most of the adapters' gain over the linear probe | 51 `imp_bitfit` | `abl_linear_probe` 62.62, `imp_trivialaug` 74.28 | 7 |
@@ -70,10 +69,10 @@ Open (added 5 Nov; add a row above with its verdict when the result is in, and u
 
 | Consideration | What we weighed | How it shaped the design |
 |---|---|---|
-| Parameter budget | <5% of the backbone, head not counted | Spend the whole 5%: LoRA r=12 + AdaptFormer b=208 = 4.998% (4.992% at 288 px, where the backbone's position embeddings grow). AdaptFormer alone, b=232, ties it at 224 px training |
+| Parameter budget | <5% of the backbone, head not counted | Spend the whole 5%: LoRA r=12 + AdaptFormer b=208 = 4.998% (4.992% at 288 px, where the backbone's position embeddings grow). AdaptFormer alone, b=232, ties it at 224 px training but is 0.87 lower at 288 px training (run 49) |
 | Compute budget | 96 GB-h; A100 about 1,100 img/s in bf16 | Fixed 10-epoch runs keep comparisons fair; heavy augmentation makes the data loader the limit |
 | Few-shot overfitting | 45 images per class, 10k classes | Choices aimed at overconfidence: label smoothing, lower lr, slower head |
-| Inference latency | Added modules cost time on every forward pass | LoRA can be merged into the weights; AdaptFormer cannot. The combined model cannot merge its LoRA either, because AdaptFormer stays: 11.8 ms, against 9.5 ms for AdaptFormer alone and about 7 ms for full FT (batch 1; the same at 288 to 352 px, run 46). AdaptFormer alone would be the faster final model; it lost only because its tie was not measured at 288 px training |
+| Inference latency | Added modules cost time on every forward pass | LoRA can be merged into the weights; AdaptFormer cannot. The combined model cannot merge its LoRA either, because AdaptFormer stays: 11.8 ms, against 9.5 ms for AdaptFormer alone and about 7 ms for full FT (batch 1; the same at 288 to 352 px, run 46). AdaptFormer alone would be the faster final model (9.8 against 12.6 ms logged at 288 px), but at 288 px training it is 0.87 lower, outside the 0.5-point tie rule |
 | Storage per task | The point of PEFT | 12M against 93.5M params stored per task, head included |
 | Keep the pre-trained features at step 0 | Avoid damaging them before training starts | Zero-initialised `lora_B` and `up`; head from class means, calibrated |
 
@@ -87,7 +86,7 @@ Per slide:
 - **10 Recipe:** layer-wise lr decay protects pre-trained layers in full fine-tuning; with a frozen backbone it only slows the early adapters. Kept only regularisers that cost nothing at inference.
 - **12 Pixels:** training at 288 px costs about 1.65x per epoch, affordable because 10 epochs already fit. Position embeddings are interpolated, so no new parameters.
 - **13 Full fine-tuning:** protect the pre-trained features with layer-wise decay 0.75 and a slow head, rather than freezing anything.
-- **11 Selection:** a tie goes to the cheaper option, and a measured result beats an assumed one. 320 px ties 352 px on both tracks (-0.31 full FT, +0.02 5%) with about 17% fewer patches (400 against 484): less compute per image, though the same batch-1 latency on an A100 (run 46). AdaptFormer alone tied the combined design and is about 17% faster, but only at a 224 px training size; the final model is trained at 288 px, where only the combined design was measured (77.94, 78.75 at 320 px).
+- **11 Selection:** a tie goes to the cheaper option, and a measured result beats an assumed one. 320 px ties 352 px on both tracks (-0.31 full FT, +0.02 5%) with about 17% fewer patches (400 against 484): less compute per image, though the same batch-1 latency on an A100 (run 46). AdaptFormer alone tied the combined design at a 224 px training size and is about 20% faster, but trained at 288 px it is 0.87 lower (77.07 against 77.94, run 49), so the tie rule no longer picks it.
 - **14 Comparison:** PEFT saves storage; it does not save training time (the frozen backbone still runs forward and backward) and costs latency unless merged.
 
 ## Results explained
@@ -105,7 +104,7 @@ Each finding: what we saw, our explanation, how sure we are.
 | LoRA r=8 (0.34%, 7 epochs) | 68.78 |
 
 - **Explanation:** with 5% of the parameters, any of these designs has enough capacity to fit 45 images per class; the limit is generalisation, not capacity. Concentrating on the last blocks loses about a point, which suggests the early layers also need to shift for fine-grained detail.
-- **Confidence:** the tie is solid (all within 0.33). Re-tested on the tuned recipe, AdaptFormer alone was 0.50 lower at 224 px (73.78 against 74.28) and 0.37 lower at 288 px (75.62 against 75.99): still a tie, and AdaptFormer alone is about 17% faster (9.7 against 11.7 ms at 288 px).
+- **Confidence:** the tie is solid (all within 0.33). Re-tested on the tuned recipe, AdaptFormer alone was 0.50 lower at 224 px (73.78 against 74.28) and 0.37 lower at 288 px (75.62 against 75.99): still a tie, and AdaptFormer alone is about 17% faster (9.7 against 11.7 ms at 288 px). **But trained at 288 px, the final resolution, it is 0.87 lower (77.07 against 77.94, run 49)**: with more pixels, adapting attention as well starts to pay. One seed each, so the seed repeats (H24) show how firm this is.
 - **The small-LoRA comparison is confounded:** it also trained for fewer epochs.
 
 ### 2. The limit was memorisation (slide 8; H5, H6 + H8, H7)
@@ -188,7 +187,7 @@ Each finding: what we saw, our explanation, how sure we are.
 | 4. Regulariser | Does anything add more? | TrivialAugment + random erasing (tie, free at inference) | 74.28 |
 | 5. Test size | Which size to score at? | 288 px | 75.99 |
 | 6. Design re-check | Does the tuned recipe separate the designs? | AdaptFormer alone (tie: -0.37 at 288 px; about 17% faster) | 75.62 at 288 px |
-| 6b. Training size | Does training at 288 px help the 5% design? | Yes: +1.95 (combined design, run 42) | 77.94 at 288 px |
+| 6b. Training size | Does training at 288 px help the 5% design? | Yes: +1.95 (combined design, run 42); AdaptFormer alone gains less (77.07, run 49) | 77.94 at 288 px |
 | 6c. Test size again | Which size for a model trained at 288 px? | 320 px (352 is level) | 78.75 |
 | 7. Submitted model | Which model goes to the test set? | `imp_trivialaug_288` itself (run 42), at 320 px: its hold-out score is measured | 78.75 |
 
@@ -209,7 +208,7 @@ Each finding: what we saw, our explanation, how sure we are.
 - **Ensemble of two full fine-tuning models:** +0.39 for twice the inference cost.
 - **Using the whole budget:** no gain over 10 epochs on either track.
 - **Stronger head starts and layer-wise decay on adapters:** both lowered accuracy.
-- **AdaptFormer alone as the submitted 5% model:** it ties the combined design and is about 17% faster, but only at 224 px training; the combined design is the one measured at 288 px training (run 42), so it was kept.
+- **AdaptFormer alone as the submitted 5% model:** it ties the combined design at 224 px training and is about 20% faster, but trained at 288 px it is 0.87 lower (run 49), outside the 0.5-point rule, so the combined design (run 42) was kept.
 - **352 px test size for full FT:** +0.31 over 320 px, within noise, for about 21% more patches (same batch-1 latency on an A100).
 - **Short fine-tune at 288 px instead of training at 288 px (run 44):** 0.66 lower at 288 px and 1.02 lower at 320 px, for about 11% less compute; useful only when a 224 px model already exists.
 - **Head + class-mean ensemble at test time (run 45):** -0.15, a tie; an extra 768 x 10,000 product for nothing.
