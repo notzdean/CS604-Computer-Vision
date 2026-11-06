@@ -88,11 +88,11 @@ The bar at the bottom shows where our score comes from. Training the head took u
 
 ## Slide 10: A better head start ends lower, and our first explanation was wrong (1:00) · Speaker 2
 
-This result surprised us. We expected a better starting point for the head to give a better final score, but it did the opposite. Building the head from 43 photos per class instead of 10 cost about a point, and starting from a separately trained head cost four points.
+This result surprised us. Our hypothesis was that a better starting point for the head would give a better final model, but the results showed the opposite. Building the head from 43 photos per class instead of 10 cost about a point, and starting from a separately trained head cost four points.
 
-Our first guess was that a strong head learns too fast at the start and leaves too little for the adapters. To test this, we paused the head's training for the first round, so the adapters could learn first. The model fell far behind at first, caught up by the sixth round, and ended with the same score.
+This led to a second hypothesis: a strong head learns too fast at the start and leaves too little for the adapters to learn. To test this, we paused the head's training for the first round, so the adapters could learn first. The model fell far behind at first, caught up by the sixth round, and ended with the same score.
 
-So our guess was wrong: when the head starts learning does not matter, only how fast it learns. We still do not know the real cause, but the lesson is clear: a good explanation is not proof until we test it.
+So the second hypothesis was wrong too: when the head starts learning does not matter, only how fast it learns. We still do not know the real cause, but the lesson is clear: a good explanation is not proof until we test it.
 
 ## Slide 11: After that, nothing moved the 5% recipe (0:40) · Speaker 2
 
