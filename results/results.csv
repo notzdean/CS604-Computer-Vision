@@ -43,3 +43,4 @@ imp_bitfit,Nicole,bitfit,71.3,88.3,35.7,102912,0.12,7690000,7.4,1.367,NVIDIA A10
 imp_head_delay,lilian,lora_adaptformer,74.33,90.33,35.7,4287936,4.998,7690000,12.3,1.391,NVIDIA A100-SXM4-40GB,40,1.159,7.3,10.0,33590,0.0001,128,,imp_trivialaug + head frozen at its class-mean start for the first epoch
 abl_lora_r8,Nicole,lora,69.72,86.52,35.7,294912,0.344,7690000,9.9,1.151,NVIDIA A100-SXM4-40GB,40,0.959,6.7,10.0,33590,0.0003,128,,abl_lora_only with rank 8 (0.34%): H1 at equal epochs and lr
 imp_ls_neighbours,Ryan,lora_adaptformer,73.67,90.12,35.7,4287936,4.998,7690000,12.2,1.403,NVIDIA A100-SXM4-40GB,40,1.169,7.3,10.0,33590,0.0001,128,,imp_trivialaug + label smoothing over each class's 20 nearest classes
+imp_trivialaug_llrd,Nicole,lora_adaptformer,72.78,89.42,35.7,4287936,4.998,7690000,12.4,1.432,NVIDIA A100-SXM4-40GB,40,1.194,7.3,10.0,33590,0.0001,128,,imp_trivialaug + layer-wise lr decay 0.75

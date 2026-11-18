@@ -57,7 +57,7 @@ Brief reference points: zero-shot 43.7%, full FT 70.8%, LoRA 68.3% (0.34%).
 
 ## Hypotheses and the runs that tested them
 
-Written 31 Oct 2026, from the config notes, the queue and the run sections below. Most of these were stated as questions when the runs were planned, so the wording here is a reconstruction, not a pre-registration. All numbers are hold-out top-1 at 224 px unless a size is given; differences under about 0.5 points are within noise. Details are in each run's section under Runs. Run 34 is not in `results/results.csv` yet. The charts show each tested run against its baseline; redraw them with `python results/plot_hypotheses.py`.
+Written 31 Oct 2026, from the config notes, the queue and the run sections below. Most of these were stated as questions when the runs were planned, so the wording here is a reconstruction, not a pre-registration. All numbers are hold-out top-1 at 224 px unless a size is given; differences under about 0.5 points are within noise. Details are in each run's section under Runs. Run 34's results row and log were handed back to `results/` on 18 Nov 2026. The charts show each tested run against its baseline; redraw them with `python results/plot_hypotheses.py`.
 
 ### Where should the 5% go? (design)
 
