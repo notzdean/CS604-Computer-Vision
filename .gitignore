@@ -17,3 +17,9 @@ __pycache__/
 .ipynb_checkpoints/
 .vscode/
 .env
+
+# Presentation and slide files (kept locally, not in the repo)
+PRESENTATION_*.md
+cs604-vit-adaptation-deck*.html
+presentation/
+iclr2026/
