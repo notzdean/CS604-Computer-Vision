@@ -49,6 +49,29 @@ def bootstrap_ci(a, b, reps=10000, seed=0):
     return 100 * np.percentile(stats, 2.5), 100 * np.percentile(stats, 97.5)
 
 
+def class_bootstrap_ci(a, b, labels, reps=10000, seed=0):
+    """Resample whole classes (each class's hold-out images stay together, since they are not independent)."""
+    rng = np.random.default_rng(seed)
+    d = a.astype(np.float64) - b.astype(np.float64)
+    classes, inv = np.unique(labels, return_inverse=True)
+    dsum = np.bincount(inv, weights=d, minlength=len(classes))
+    cnt = np.bincount(inv, minlength=len(classes)).astype(np.float64)
+    k, stats = len(classes), np.empty(reps)
+    for i in range(0, reps, 500):
+        idx = rng.integers(0, k, size=(min(500, reps - i), k))
+        stats[i:i + len(idx)] = dsum[idx].sum(1) / cnt[idx].sum(1)
+    return 100 * np.percentile(stats, 2.5), 100 * np.percentile(stats, 97.5)
+
+
+def holdout_labels(runs, run):
+    """Class of every hold-out image, in the order used for scoring (reads train.txt only, no images)."""
+    import yaml
+    from common import data
+    cfg = yaml.safe_load(open(f"{runs}/{run}/config.yaml"))
+    _, hold = data.split_holdout(data.read_train(), cfg["holdout_per_class"])
+    return np.array([c for _, c in hold])
+
+
 def mcnemar_p(a, b):
     from scipy.stats import binomtest
     only_a, only_b = int((a & ~b).sum()), int((~a & b).sum())
@@ -60,19 +83,24 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", required=True, help="folder holding the run folders")
     a = ap.parse_args()
-    rows = []
+    rows, labels = [], None
     for h, ra, rb in PAIRS:
         ca, cb = correct(a.runs, ra), correct(a.runs, rb)
         assert len(ca) == len(cb), "hold-out sizes differ"
+        if labels is None:
+            labels = holdout_labels(a.runs, ra)
+        assert len(labels) == len(ca), "hold-out labels do not match the scored images"
         diff = 100 * (ca.mean() - cb.mean())
         lo, hi = bootstrap_ci(ca, cb)
+        clo, chi = class_bootstrap_ci(ca, cb, labels)
         p, only_a, only_b = mcnemar_p(ca, cb)
-        rows.append((h, ra, rb, diff, lo, hi, p, only_a, only_b))
-    print(f"\n{'test':13s} {'A - B':>7s} {'95% interval':>17s} {'McNemar p':>10s}  only A / only B right")
-    for h, ra, rb, diff, lo, hi, p, only_a, only_b in rows:
+        rows.append((h, ra, rb, diff, lo, hi, clo, chi, p, only_a, only_b))
+    print(f"\n{'test':13s} {'A - B':>7s} {'95% CI, images':>17s} {'95% CI, classes':>17s} {'McNemar p':>10s}  only A / only B right")
+    for h, ra, rb, diff, lo, hi, clo, chi, p, only_a, only_b in rows:
         ps = "<0.001" if p < 0.001 else f"{p:.3f}"
-        print(f"{h:13s} {diff:+7.2f} [{lo:+6.2f}, {hi:+6.2f}] {ps:>10s}  {only_a} / {only_b}   ({ra} - {rb})")
-    print("\nAn interval that excludes 0 (or p < 0.05) means the difference is larger than hold-out sampling noise.")
+        print(f"{h:13s} {diff:+7.2f} [{lo:+6.2f}, {hi:+6.2f}] [{clo:+6.2f}, {chi:+6.2f}] {ps:>10s}  {only_a} / {only_b}   ({ra} - {rb})")
+    print("\nAn interval that excludes 0 means the difference is larger than hold-out sampling noise.")
+    print("Report the class-level interval: each class's 2 hold-out images are resampled together.")
 
 
 if __name__ == "__main__":
